@@ -145,12 +145,16 @@ double  m1yfunc(double x[])
 	return(((a*a) + (b*b)));
 
 }
+
+/* // Never gets used so commenting out for now
 int rounds(double a) {
 	if (a >= 0)
 		return int(a + 0.5);
 	else
 		return int(a - 0.5);
 }
+*/
+
 double myfunc(double z[])
 {
 	/*This is the function that is minimized by simplex.  What it does, conceptually, is similar to performing a

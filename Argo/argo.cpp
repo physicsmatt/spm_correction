@@ -7,7 +7,7 @@
 **********************************************************************
 */
 
-/*Version 0.8
+/*Version 1.0
 *
 *Known Issues:
 *-Sliverdrift is SIGNIFICANTLY slower.  Need to try to speed this up.
@@ -41,10 +41,10 @@
 #include "image_basic.h"
 #include "simplex.h"
 #include <ppl.h>
-using namespace std;
+
 using namespace Concurrency;
 //#define SANITYCHECKS
-#define VERSION "0.7"
+#define VERSION "1.0"
 #define codefold
 //Define struct for holding the 6 Beta values used to evaluate the C coefficients.
 struct beta_values{
@@ -61,13 +61,13 @@ struct param_combo {
 
 
 #ifdef codefold
-// 
-//int round(double a) {
-//	if (a>=0)
-//		return int(a + 0.5);
-//	else
-//		return int(a - 0.5);
-//}
+
+int round(double a) {
+	if (a>=0)
+		return int(a + 0.5);
+	else
+		return int(a - 0.5);
+}
 
 bool operator<(const param_combo& a, const param_combo& b) {
 	if (a.P1 != b.P1)
@@ -408,7 +408,7 @@ int main(int argc, char *argv[]){
 
 	//blocksize=8;
 
-	string rundata1, rundata2;
+	std::string rundata1, rundata2;
 
 
 	printf("Running on version %s\n", VERSION);
@@ -722,9 +722,9 @@ int main(int argc, char *argv[]){
 	int Apoints = totaldriftA * 2 + 1;
 	int Bpoints = totaldriftB * 2 + 1;
 	int num_sliver_blocks = 8;//resamp_sliver_Image.width/blocksize; //hardcode for now
-	cout << resamp_sliver_Image.width << "\n";
+	std::cout << resamp_sliver_Image.width << "\n";
 	int sliver_block_width = resamp_sliver_Image.width / num_sliver_blocks;
-	cout << sliver_block_width << "\n";
+	std::cout << sliver_block_width << "\n";
 	time0 = clock();
 
 	//*********************
@@ -764,7 +764,7 @@ int main(int argc, char *argv[]){
 	gamma_values difflet;
 	printf("blocklet width: %d blockHeight: %d number of blocklets: %d number of blocks %d\n",
 		resamp_sliver_Image.width / num_sliver_blocks, blocksize, num_sliver_blocks, numblocks);
-	cout << "\nBsliverdrift: " << Bsliverdrift << "\n";
+	std::cout << "\nBsliverdrift: " << Bsliverdrift << "\n";
 
 	for (long int sb = 0; sb<num_sliver_blocks; ++sb) {
 		long int sliver_block_x = sb*sliver_block_width;
@@ -876,7 +876,7 @@ int main(int argc, char *argv[]){
 	}
 	//	cout << "hi";
 	//getchar();
-	sort(B_combos, (B_combos + (number_of_B_combos)));
+	std::sort(B_combos, (B_combos + (number_of_B_combos)));
 
 	long int number_of_A_combos = ((int)(a1_Max / a1_step) * 2 + 1)*((int)(a2_Max / a2_step) * 2 + 1)*((int)(a3_Max / a3_step) * 2 + 1);
 	//double (*A_combos)[3] = new double[number_of_A_combos][3];
@@ -892,7 +892,7 @@ int main(int argc, char *argv[]){
 			}
 		}
 	}
-	sort(A_combos, (A_combos + (number_of_A_combos)));
+	std::sort(A_combos, (A_combos + (number_of_A_combos)));
 
 	time2 = clock();
 
@@ -1345,7 +1345,7 @@ int main(int argc, char *argv[]){
 	double ctermCopy[4] = { z[8], z[9], z[10], z[11] };
 	image_basic final_norefine(base_Image.width, base_Image.height, base_Image.get_color_mode());
 	//warp_image(&base_Image,base_Image.width, base_Image.height,aterms_n,bterms_n,1,&final_norefine);
-	string finalstring = "C:\\Research Data\\nathan follin\\warping\\testing with idl\\images\\final_norefine.tif";
+	std::string finalstring = "C:\\Research Data\\nathan follin\\warping\\testing with idl\\images\\final_norefine.tif";
 	//final_norefine.file_write_tiff(finalstring);
 
 	simplex(&base_Image, &sliver_Image, x, z, n, precisionArr, reflectParam, contractParam, growthParam, haltParam, maxRefineIterationsParam);
@@ -1373,7 +1373,7 @@ int main(int argc, char *argv[]){
 	int endtime = clock();
 	//finalstring="C:\\Research Data\\trawick\\testing sliver warping\\set3\\redo\\final.tif";
 	finalstring = rundata1;
-	basic_string <char> finalmarkerstring("_corrected");
+	std::basic_string <char> finalmarkerstring("_corrected");
 	finalstring.insert(finalstring.rfind("."), finalmarkerstring);
 
 	//printf("output string:\n");
@@ -1414,7 +1414,7 @@ int main(int argc, char *argv[]){
 	//size_t endpart = rundata1.find("_s0");
 	//string filename = rundata1.substr(firstpart,endpart) + ".dat";
 	//printf("filename  %s\n\n",filename);
-	string outputFileName = rundata1.substr(0, rundata1.length() - 4) + ".dat";//"C:\\Research Data\\nathan follin\\warping\\testing with idl\\images\\jan2011\\" + filename;
+	std::string outputFileName = rundata1.substr(0, rundata1.length() - 4) + ".dat";//"C:\\Research Data\\nathan follin\\warping\\testing with idl\\images\\jan2011\\" + filename;
 	logfile = fopen(outputFileName.c_str(), "w");
 	FILE *timefile = fopen("runtimes.txt", "a");
 	if (logfile == NULL){
