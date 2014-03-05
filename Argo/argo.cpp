@@ -32,10 +32,10 @@
 #include <math.h>
 #include <time.h>
 #include "Eigen\Eigen"
-#include <ctime>
+//#include <ctime>	No need to use this as a result of time.h being included.
 #include <stdio.h>
-#include <fstream>
-#include <IStream>
+//#include <fstream>	iostream included so why include this?
+//#include <IStream>	again why?
 #include <valarray>
 #include <algorithm>
 #include "image_basic.h"
@@ -61,8 +61,8 @@ struct param_combo {
 
 
 #ifdef codefold
-
-int round(double a) {
+// Basically just return floor() for negatives and ceil() for positives. Gosh why such a crappy implementation?
+int rnd(double a) {
 	if (a>=0)
 		return int(a + 0.5);
 	else
@@ -77,6 +77,7 @@ bool operator<(const param_combo& a, const param_combo& b) {
 	else
 		return a.P3 < b.P3;
 }
+
 bool operator>(const param_combo& a, const param_combo& b) {
 	if (a.P1 != b.P1)
 		return a.P1 > b.P1;
@@ -85,6 +86,7 @@ bool operator>(const param_combo& a, const param_combo& b) {
 	else
 		return a.P3 > b.P3;
 }
+
 bool operator<=(const param_combo& a, const param_combo& b) {
 	if (a.P1 != b.P1)
 		return a.P1 <= b.P1;
@@ -93,6 +95,7 @@ bool operator<=(const param_combo& a, const param_combo& b) {
 	else
 		return a.P3 <= b.P3;
 }
+
 bool operator>=(const param_combo& a, const param_combo& b) {
 	if (a.P1 != b.P1)
 		return a.P1 >= b.P1;
@@ -146,6 +149,7 @@ float interp_pixel_float(image_basic *baseImage, float x, float y) {
 	return (t*bottom_val + (1 - t)*top_val);//(bottom_val + t * (top_val-bottom_val));
 
 }
+
 // returns pixel value from float x,y by bilerping
 //  The "double" version ran just as fast as the "float" version in one of my tests, so
 // I'm keeping it as a double, even if it might not be strictly necessary all the time.
@@ -224,7 +228,7 @@ void warp_image(image_basic *baseImage, int sizex, int sizey, double aterms[], d
 				}
 				else
 				{
-					pixelvalue = round(interp_pixel(baseImage, (float)newx, (float)newy) + newz);     //where the new value is actually computed.
+					pixelvalue = rnd(interp_pixel(baseImage, (float)newx, (float)newy) + newz);     //where the new value is actually computed.
 					//note,above, the cheap-ass implementation of rounding
 					//ceil(newz);
 					//pixelvalue+= newz;
@@ -251,7 +255,7 @@ void warp_image(image_basic *baseImage, int sizex, int sizey, double aterms[], d
 				}
 				else
 				{
-					pixelvalue = round(interp_pixel(baseImage, (float)newx, (float)newy));     //where the new value is actually computed.
+					pixelvalue = rnd(interp_pixel(baseImage, (float)newx, (float)newy));     //where the new value is actually computed.
 					warpedImage->set(pixelx, pixely, pixelvalue);
 
 				}
@@ -321,10 +325,11 @@ void val22DArray(image_basic *baseImage, int image[])
 
 void nearestneighbor(double x, double y, double* newx, double* newy)
 {
-	*newx = round(x);
-	*newy = round(y);
+	*newx = rnd(x);
+	*newy = rnd(y);
 }
 
+/* Seriously, why create min(), max() templated functions, especially when you never use them
 int min(int x, int y)
 {
 	if (x < y)
@@ -341,11 +346,12 @@ int max(int x, int y)
 	else
 		return x;
 }
+*/
 
-void resample(image_basic *resamp, image_basic base, int factor)
 //This function down-samples an image by an integer factor.  
 //Assumes values of images are integers
 //This is NOT a particularly fast function.
+void resample(image_basic *resamp, image_basic base, int factor)
 {
 	unsigned int rx_size = base.width / factor;
 	unsigned int ry_size = base.height / factor;
@@ -361,7 +367,7 @@ void resample(image_basic *resamp, image_basic base, int factor)
 			for (unsigned int by = ry*factor; by<(ry + 1)*factor; ++by)
 			for (unsigned int bx = rx*factor; bx<(rx + 1)*factor; ++bx)
 				pixel_value += base.fast_get(bx, by);
-			resamp->set(rx, ry, round(pixel_value*inv_area));
+			resamp->set(rx, ry, rnd(pixel_value*inv_area));
 		}
 	}
 }
@@ -622,7 +628,9 @@ int main(int argc, char *argv[]){
 
 	double bestA0, bestA1, bestA2, bestA3;
 	double bestB0, bestB1, bestB2, bestB3;
-	double bestdiff = 1e37;//essentially infinity
+	/*	Make the best diff smaller. Also, while performing diff summations, if diff goes past bestdiff, break and continue
+	Honestly, bestdiff should not be so huge.	*/
+	double bestdiff = 1e37;		//essentially infinity
 
 #endif
 	// START COMMENTING TO SKIP GRID SEARCH HERE

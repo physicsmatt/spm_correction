@@ -21,8 +21,8 @@ this software is worth what you paid for it, and you paid zero.
 #include "image_basic.h"
 #include <iostream>
 #include <time.h>
-#include <fstream>
-#include <IStream>
+//#include <fstream>	Refer to argo includes
+//#include <IStream>
 #include <vector>
 #include "Eigen\Eigen"
 #include <ppl.h>
