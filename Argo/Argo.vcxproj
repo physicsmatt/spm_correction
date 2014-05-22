@@ -114,6 +114,7 @@
       <Version>1.2</Version>
       <SuppressStartupBanner>false</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
+      <LinkStatus>true</LinkStatus>
     </Link>
     <CustomBuildStep>
       <Inputs>$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.dll;$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.pdb</Inputs>
@@ -141,6 +142,7 @@
       <Version>1.2</Version>
       <SuppressStartupBanner>false</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
+      <LinkStatus>true</LinkStatus>
     </Link>
     <CustomBuildStep>
       <Inputs>$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.dll;$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.pdb</Inputs>
@@ -170,6 +172,7 @@
       <Version>1.2</Version>
       <SuppressStartupBanner>false</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
+      <LinkStatus>true</LinkStatus>
     </Link>
     <CustomBuildStep>
       <Outputs>Copying required Intel Thread Building Blocks DLL's.</Outputs>
@@ -199,6 +202,7 @@
       <Version>1.2</Version>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
+      <LinkStatus>true</LinkStatus>
     </Link>
     <CustomBuildStep>
       <Command>xcopy /d /y "$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb.*" "$(TargetDir)"</Command>

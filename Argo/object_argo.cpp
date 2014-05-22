@@ -374,10 +374,10 @@ void resample(image_basic *resamp, image_basic base, int factor) {
 
 argo::argo()	{
 	blocksize = 0;
-	MaxA0 = 5, MaxB0 = 5;
-	a1_Max = 0.1, b1_Max = 0.1;
-	a2_Multiplier = (1.0 / 9.0), b2_Multiplier = (1.0 / 9.0);
-	a3_Multiplier = .1, b3_Multiplier = .1;
+	A0_max = 5, B0_max = 5;
+	a1_max = 0.1, b1_max = 0.1;
+	a2_mult = (1.0 / 9.0), b2_mult = (1.0 / 9.0);
+	a3_mult = .1, b3_mult = .1;
 	precision = 1;
 
 	/**
@@ -385,11 +385,11 @@ argo::argo()	{
 	* To avoid being trapped in some rut, it seems to be VERY important to have the reflection
 	* parameter slightly less than 1.0, and the growth parameter less than 2.0.
 	*/
-	growthParam = 1.5, contractParam = 0.5, reflectParam = 0.9, haltParam = 1e-11;
-	maxRefineIterationsParam = 5000;
+	simplex_growth = 1.5, simplex_contract = 0.5, simplex_reflect = 0.9, simplex_halt = 1e-11;
+	simplex_iterations = 5000;
 
 	rsliver_width, rsliver_height, rbase_width, rbase_height, numblocks;
-	a2_Max, a3_Max, b2_Max, b3_Max;
+	a2_max, a3_max, b2_max, b3_max;
 	a1_step, a2_step, a3_step, b1_step, b2_step, b3_step;
 	totaldriftA, totaldriftB;
 
@@ -398,12 +398,12 @@ argo::argo()	{
 	Apoints, Bpoints;
 	num_sliver_blocks;
 	sliver_block_width;
-	dyn_diff_length;
-	number_of_A_combos, number_of_B_combos;
+	dyn_diffs_size;
+	A_combos_size, B_combos_size;
 
 	results.bestdiff = 1e37;
 	results.count = 0;
-	results.iterationsIgnored = 0;
+	results.iterations_ignored = 0;
 }
 
 argo::~argo()	{
@@ -413,11 +413,11 @@ argo::~argo()	{
 	if (beta_gamma_store.dynamic_diffs)	{
 		delete[] beta_gamma_store.dynamic_diffs;
 	}
-	if (combos_store.A_combos)	{
-		delete[] combos_store.A_combos;
+	if (combos.A_combos)	{
+		delete[] combos.A_combos;
 	}
-	if (combos_store.B_combos)	{
-		delete[] combos_store.B_combos;
+	if (combos.B_combos)	{
+		delete[] combos.B_combos;
 	}
 }
 
@@ -425,38 +425,38 @@ argo::~argo()	{
 
 void argo::logInputParams()	{
 	printf("******** Input Parameters ********\n");
-	printf("Input Max A0 : \t %d\n", MaxA0);
-	printf("Input Max B0 : \t %d\n", MaxB0);
-	printf("Input Max a1 : \t %f\n", a1_Max);
-	printf("Input Max b1 : \t %f\n", b1_Max);
-	printf("Input a2 Multiplier : \t %f\n", a2_Multiplier);
-	printf("Input b2 Multiplier : \t %f\n", b2_Multiplier);
-	printf("Input a3 Multiplier : \t %f\n", a3_Multiplier);
-	printf("Input b3 Multiplier : \t %f\n", b3_Multiplier);
+	printf("Input Max A0 : \t %d\n", A0_max);
+	printf("Input Max B0 : \t %d\n", B0_max);
+	printf("Input Max a1 : \t %f\n", a1_max);
+	printf("Input Max b1 : \t %f\n", b1_max);
+	printf("Input a2 Multiplier : \t %f\n", a2_mult);
+	printf("Input b2 Multiplier : \t %f\n", b2_mult);
+	printf("Input a3 Multiplier : \t %f\n", a3_mult);
+	printf("Input b3 Multiplier : \t %f\n", b3_mult);
 
 	printf("******** Simplex Routine Information ********\n");
 	printf("Input Precision : \t %d\n", precision);
-	printf("Input Growth : \t %f\n", growthParam);
-	printf("Input Contraction : \t %f\n", contractParam);
-	printf("Input Reflection : \t %f\n", reflectParam);
-	printf("Input Error Halt : \t %f\n", haltParam);
-	printf("Input Maximum Iterations : \t %d\n", maxRefineIterationsParam);
+	printf("Input Growth : \t %f\n", simplex_growth);
+	printf("Input Contraction : \t %f\n", simplex_contract);
+	printf("Input Reflection : \t %f\n", simplex_reflect);
+	printf("Input Error Halt : \t %f\n", simplex_halt);
+	printf("Input Maximum Iterations : \t %d\n", simplex_iterations);
 	printf("\n");
 }
 
 void argo::logCalculatedParams()	{
 	printf("******** Calculated Parameters ********\n");
-	printf("a1 Max : %f, a1 Step Size : %f, a1 Steps : %f\n", a1_Max, a1_step, a1_Max / a1_step);
-	printf("a2 Max : %f, a2 Step Size : %f, a2 Steps : %f\n", a2_Max, a2_step, a2_Max / a2_step);
-	printf("a3 Max : %f, a3 Step Size : %f, a3 Steps : %f\n", a3_Max, a3_step, a3_Max / a3_step);
+	printf("a1 Max : %f, a1 Step Size : %f, a1 Steps : %f\n", a1_max, a1_step, a1_max / a1_step);
+	printf("a2 Max : %f, a2 Step Size : %f, a2 Steps : %f\n", a2_max, a2_step, a2_max / a2_step);
+	printf("a3 Max : %f, a3 Step Size : %f, a3 Steps : %f\n", a3_max, a3_step, a3_max / a3_step);
 
-	printf("b1 Max : %f, b1 Step Size : %f, b1 Steps : %f\n", b1_Max, b1_step, b1_Max / b1_step);
-	printf("b2 Max : %f, b2 Step Size : %f, b2 Steps : %f\n", b2_Max, b2_step, b2_Max / b2_step);
-	printf("b3 Max : %f, b3 Step Size : %f, b3 Steps : %f\n", b3_Max, b3_step, b3_Max / b3_step);
+	printf("b1 Max : %f, b1 Step Size : %f, b1 Steps : %f\n", b1_max, b1_step, b1_max / b1_step);
+	printf("b2 Max : %f, b2 Step Size : %f, b2 Steps : %f\n", b2_max, b2_step, b2_max / b2_step);
+	printf("b3 Max : %f, b3 Step Size : %f, b3 Steps : %f\n", b3_max, b3_step, b3_max / b3_step);
 
-	printf("A0 Max : %d, B0 Max %d\n", MaxA0, MaxB0);
+	printf("A0 Max : %d, B0 Max %d\n", A0_max, B0_max);
 	printf("total drifts : \t %ld, %ld\n", totaldriftA, totaldriftB);
-	printf("height removed : \t %ld\n", (totaldriftB + 2 * Bsliverdrift + MaxB0));
+	printf("height removed : \t %ld\n", (totaldriftB + 2 * Bsliverdrift + B0_max));
 	printf("\n");
 }
 
@@ -469,7 +469,7 @@ void argo::logBetaGammaInfo()	{
 	printf("Number of Blocklets : \t %d\n", num_sliver_blocks);
 	printf("Blocklet Pixel Width : \t %d\n", rsliver_width / num_sliver_blocks);
 	printf("Block and Blocklet Pixel Height : \t %d\n", blocksize);
-	printf("Size of Beta Array : \t %d\n", dyn_diff_length);
+	printf("Size of Beta Array : \t %d\n", dyn_diffs_size);
 	printf("\n");
 }
 
@@ -484,11 +484,11 @@ void argo::logCurrentBest()	{
 
 void argo::logGridSearchInfo()	{
 	printf("******** Finished Grid Search ********\n");
-	printf("Time for Diffs : \t %f \n", times_store.diffs_time);
-	printf("Time for Combos : \t %f \n", times_store.combos_time);
-	printf("Time for Grid Search: \t %lf \n", times_store.grid_time);
+	printf("Time for Diffs : \t %f \n", times.diffs_time);
+	printf("Time for Combos : \t %f \n", times.combos_time);
+	printf("Time for Grid Search: \t %lf \n", times.grid_time);
 	printf("Total Count : \t %I64u\n", results.count);
-	printf("Iterations Ignored : \t %I64u\n", results.iterationsIgnored);
+	printf("Iterations Ignored : \t %I64u\n", results.iterations_ignored);
 	printf("Total Difference : \t %f\n", results.bestdiff);
 	printf("\n");
 }
@@ -496,16 +496,16 @@ void argo::logGridSearchInfo()	{
 void argo::logSimplexRoutineInfo()	{
 	printf("******** Finished Simplex Routine ********\n");
 	printf("Drift Coefficients :\n");
-	printf("Best A0 : %f\n", z[0]);
-	printf("Best A1 : %f\n", z[2]);
-	printf("Best A2 : %e\n", z[4]);
-	printf("Best A3 : %e\n", z[6]);
-	printf("Best B0 : %f\n", z[1]);
-	printf("Best B1 : %f\n", z[3] - 1);
-	printf("Best B2 : %e\n", z[5]);
-	printf("Best B3 : %e\n", z[7]);
-	printf("Best C0 : %e\nBest C1: %e\nBest C2: %e\nBest C3: %e\n", z[8], z[9], z[10], z[11]);
-	printf("Time for Simplex Routine : \t %f seconds\n", times_store.simplex_time);
+	printf("Best A0 : %f\n", simplex_best[0]);
+	printf("Best A1 : %f\n", simplex_best[2]);
+	printf("Best A2 : %e\n", simplex_best[4]);
+	printf("Best A3 : %e\n", simplex_best[6]);
+	printf("Best B0 : %f\n", simplex_best[1]);
+	printf("Best B1 : %f\n", simplex_best[3] - 1);
+	printf("Best B2 : %e\n", simplex_best[5]);
+	printf("Best B3 : %e\n", simplex_best[7]);
+	printf("Best C0 : %e\nBest C1: %e\nBest C2: %e\nBest C3: %e\n", simplex_best[8], simplex_best[9], simplex_best[10], simplex_best[11]);
+	printf("Time for Simplex Routine : \t %f seconds\n", times.simplex_time);
 	printf("\n");
 }
 
@@ -518,28 +518,28 @@ void argo::logProgramInformation()	{
 	else {
 		fprintf(paramfile, "Simplex Routine Parameters : \n");
 		fprintf(paramfile, "A Params\n");
-		fprintf(paramfile, "%e %e %e %e\n", z[0], z[2], z[4], z[6]);
+		fprintf(paramfile, "%e %e %e %e\n", simplex_best[0], simplex_best[2], simplex_best[4], simplex_best[6]);
 		fprintf(paramfile, "B Params\n");
-		fprintf(paramfile, "%e %e %e %e\n", z[1], z[3] - 1.0, z[5], z[7]);
+		fprintf(paramfile, "%e %e %e %e\n", simplex_best[1], simplex_best[3] - 1.0, simplex_best[5], simplex_best[7]);
 		fprintf(paramfile, "C Params\n");
-		fprintf(paramfile, "%e %e %e %e\n", z[8], z[9], z[10], z[11]);
+		fprintf(paramfile, "%e %e %e %e\n", simplex_best[8], simplex_best[9], simplex_best[10], simplex_best[11]);
 		fprintf(paramfile, "\n");
 		fprintf(paramfile, "Grid Search Parameters : \n");
 		fprintf(paramfile, "A Params\n");
-		fprintf(paramfile, "%e %e %e %e\n", x[0], x[2], x[4], x[6]);
+		fprintf(paramfile, "%e %e %e %e\n", grid_best[0], grid_best[2], grid_best[4], grid_best[6]);
 		fprintf(paramfile, "B Params\n");
-		fprintf(paramfile, "%e %e %e %e\n", x[1], x[3] - 1.0, x[5], x[7]);
+		fprintf(paramfile, "%e %e %e %e\n", grid_best[1], grid_best[3] - 1.0, grid_best[5], grid_best[7]);
 		fprintf(paramfile, "C Params\n");
-		fprintf(paramfile, "%e %e %e %e\n", x[8], x[9], x[10], x[11]);
+		fprintf(paramfile, "%e %e %e %e\n", grid_best[8], grid_best[9], grid_best[10], grid_best[11]);
 		fprintf(paramfile, "\n");
 		fprintf(paramfile, "Time Information : \n");
-		fprintf(paramfile, "Image Read Time : \t%f\n", times_store.image_read_time);
-		fprintf(paramfile, "Combos Time : \t%f\n", times_store.combos_time);
-		fprintf(paramfile, "Diffs Time : \t%f\n", times_store.diffs_time);
-		fprintf(paramfile, "Grid Search Time : \t%f\n", times_store.grid_time);
-		fprintf(paramfile, "Simplex Routine Time : \t%f\n", times_store.simplex_time);
-		fprintf(paramfile, "Image Write Time\t%f\n", times_store.image_write_time);
-		fprintf(paramfile, "Total Program Time : \t%f\n", times_store.total_time);
+		fprintf(paramfile, "Image Read Time : \t%f\n", times.image_read_time);
+		fprintf(paramfile, "Combos Time : \t%f\n", times.combos_time);
+		fprintf(paramfile, "Diffs Time : \t%f\n", times.diffs_time);
+		fprintf(paramfile, "Grid Search Time : \t%f\n", times.grid_time);
+		fprintf(paramfile, "Simplex Routine Time : \t%f\n", times.simplex_time);
+		fprintf(paramfile, "Image Write Time\t%f\n", times.image_write_time);
+		fprintf(paramfile, "Total Program Time : \t%f\n", times.total_time);
 
 		fclose(paramfile);
 		printf("********End of Program********\n");
@@ -551,8 +551,8 @@ void argo::logProgramInformation()	{
 void argo::readImages()	{
 
 	// Read image files and resample based upon provided precision.
-	images_store.orig_base.file_read_tiff(rundata1);
-	images_store.orig_sliver.file_read_tiff(rundata2);
+	images_store.orig_base.file_read_tiff(base_name);
+	images_store.orig_sliver.file_read_tiff(sliver_name);
 	resample(&images_store.resamp_base, images_store.orig_base, precision);
 	resample(&images_store.resamp_sliver, images_store.orig_sliver, precision);
 
@@ -580,42 +580,42 @@ void argo::readInputParams(int argc, char *argv[])	{
 			// Look at argument after option to get corresponding value
 			switch ( command_arg ) {
 				case 'i':
-					rundata1 = argv[ i + 1 ];
-					for ( unsigned int x = 0; x < rundata1.length(); x++ ) {
-						if ( rundata1[ x ] == '|' )
-							rundata1[ x ] = ' ';
+					base_name = argv[ i + 1 ];
+					for ( unsigned int x = 0; x < base_name.length(); x++ ) {
+						if ( base_name[ x ] == '|' )
+							base_name[ x ] = ' ';
 					}
 					break;
 				case 's':
-					rundata2 = argv[ i + 1 ];
-					for ( unsigned int x = 0; x < rundata2.length(); x++ ) {
-						if ( rundata2[ x ] == '|' )
-							rundata2[ x ] = ' ';
+					sliver_name = argv[ i + 1 ];
+					for ( unsigned int x = 0; x < sliver_name.length(); x++ ) {
+						if ( sliver_name[ x ] == '|' )
+							sliver_name[ x ] = ' ';
 					}
 					break;
 				case '0':
-					MaxA0 = atoi( argv[ i + 1 ] );
+					A0_max = atoi( argv[ i + 1 ] );
 					break;
 				case '1':
-					MaxB0 = atoi( argv[ i + 1 ] );
+					B0_max = atoi( argv[ i + 1 ] );
 					break;
 				case '2':
-					a1_Max = atof( argv[ i + 1 ] );
+					a1_max = atof( argv[ i + 1 ] );
 					break;
 				case '3':
-					b1_Max = atof( argv[ i + 1 ] );
+					b1_max = atof( argv[ i + 1 ] );
 					break;
 				case '4':
-					a2_Multiplier = atof( argv[ i + 1 ] );
+					a2_mult = atof( argv[ i + 1 ] );
 					break;
 				case '5':
-					b2_Multiplier = atof( argv[ i + 1 ] );
+					b2_mult = atof( argv[ i + 1 ] );
 					break;
 				case '6':
-					a3_Multiplier = atof( argv[ i + 1 ] );
+					a3_mult = atof( argv[ i + 1 ] );
 					break;
 				case '7':
-					b3_Multiplier = atof( argv[ i + 1 ] );
+					b3_mult = atof( argv[ i + 1 ] );
 					break;
 				case 'p':
 					precision = atoi( argv[ i + 1 ] );
@@ -624,19 +624,19 @@ void argo::readInputParams(int argc, char *argv[])	{
 					blocksize = atoi( argv[ i + 1 ] );
 					break;
 				case 'g':
-					growthParam = atof( argv[ i + 1 ] );
+					simplex_growth = atof( argv[ i + 1 ] );
 					break;
 				case 'c':
-					contractParam = atof( argv[ i + 1 ] );
+					simplex_contract = atof( argv[ i + 1 ] );
 					break;
 				case 'r':
-					reflectParam = atof( argv[ i + 1 ] );
+					simplex_reflect = atof( argv[ i + 1 ] );
 					break;
 				case 'h':
-					haltParam = atof( argv[ i + 1 ] );
+					simplex_halt = atof( argv[ i + 1 ] );
 					break;
 				case 't':
-					maxRefineIterationsParam = atoi( argv[ i + 1 ] );
+					simplex_iterations = atoi( argv[ i + 1 ] );
 					break;
 				default:
 					break;
@@ -651,53 +651,52 @@ void argo::readInputParams(int argc, char *argv[])	{
 
 void argo::initCalculatedParams()	{
 	// Set precision adjusted MaxA0 and MaxB0.
-	MaxA0 = ( int ) ceil( ( float ) MaxA0 / ( float ) precision );
-	MaxB0 = ( int ) ceil( ( float ) MaxB0 / ( float ) precision );
+	A0_max = ( int ) ceil( ( float ) A0_max / ( float ) precision );
+	B0_max = ( int ) ceil( ( float ) B0_max / ( float ) precision );
 
 	// Set a1, a2, a3, b1, b2, b3 step sizes.
 	a1_step = 1.0 / rbase_height; //that's 1 pixel
-	a2_Max = a2_Multiplier * ( a1_Max * 4 / rbase_height );  //one third of max deviation from linear part.  This is totally arbitrary.
+	a2_max = a2_mult * ( a1_max * 4 / rbase_height );  //one third of max deviation from linear part.  This is totally arbitrary.
 	a2_step = 4.0 / ( rbase_height * rbase_height );
-	a3_Max = a3_Multiplier * 20.78 * a1_Max / ( rbase_height * rbase_height );
+	a3_max = a3_mult * 20.78 * a1_max / ( rbase_height * rbase_height );
 	a3_step = 20.78 / ( rbase_height * rbase_height * rbase_height ); //changed constant from 10.4 on 1/15/2007 <--- Nathan would like to know where magic 20.78 comes from.
 
 	b1_step = 1.0 / rbase_height;
-	b2_Max = b2_Multiplier * ( b1_Max * 4 / rbase_height );
+	b2_max = b2_mult * ( b1_max * 4 / rbase_height );
 	b2_step = 4.0 / ( rbase_height * rbase_height );
-	b3_Max = b3_Multiplier * 20.78 * b1_Max / ( rbase_height * rbase_height );
+	b3_max = b3_mult * 20.78 * b1_max / ( rbase_height * rbase_height );
 	b3_step = 20.78 / ( rbase_height * rbase_height * rbase_height );
 
 	// Make a1, a2, a3, b1, b2, b3 maximums exact ratios (rather than relative) of their respective steps
-	a1_Max = ceil( a1_Max / a1_step ) * a1_step;
-	a2_Max = ceil( a2_Max / a2_step ) * a2_step;
-	a3_Max = ceil( a3_Max / a3_step ) * a3_step;
+	a1_max = ceil( a1_max / a1_step ) * a1_step;
+	a2_max = ceil( a2_max / a2_step ) * a2_step;
+	a3_max = ceil( a3_max / a3_step ) * a3_step;
 
-	b1_Max = ceil( b1_Max / b1_step ) * b1_step;
-	b2_Max = ceil( b2_Max / b2_step ) * b2_step;
-	b3_Max = ceil( b3_Max / b3_step ) * b3_step;
+	b1_max = ceil( b1_max / b1_step ) * b1_step;
+	b2_max = ceil( b2_max / b2_step ) * b2_step;
+	b3_max = ceil( b3_max / b3_step ) * b3_step;
 
 	// This set of variables record how many pixels of drift in either axis that will be encountered by the program.
 	// Note that the factor of 1.38 is hard-coded for a2_multiplier = 1/3, a3_multiplier = 1/9
-	totaldriftA = MaxA0 + ( int ) ceil( 1.38 * a1_Max * rbase_height );
-	totaldriftB = MaxB0 + ( int ) ceil( 1.38 * b1_Max * rbase_height );
+	totaldriftA = A0_max + ( int ) ceil( 1.38 * a1_max * rbase_height );
+	totaldriftB = B0_max + ( int ) ceil( 1.38 * b1_max * rbase_height );
 
 	// Compute maximum slope.
-	double maxslope, maxslopeA, maxslopeB = 0;
-	maxslopeA = a1_Max +
-			a2_Max * rbase_height +
-			0.5 * rbase_height * rbase_height * a3_Max;
-	maxslopeB = b1_Max +
-			b2_Max * rbase_height +
-			0.5 * rbase_height * rbase_height * b3_Max;
-	maxslope = maxslopeB > maxslopeA ? maxslopeB : maxslopeA;
+	double max_slope, maxslopeA, maxslopeB = 0;
+	maxslopeA = a1_max +
+			a2_max * rbase_height +
+			0.5 * rbase_height * rbase_height * a3_max;
+	maxslopeB = b1_max +
+			b2_max * rbase_height +
+			0.5 * rbase_height * rbase_height * b3_max;
+	max_slope = maxslopeB > maxslopeA ? maxslopeB : maxslopeA;
 
 	// Recalculate block size based upon calculated maximum slope if user does not provide a block size.
 	if (blocksize <= 0)
 	{
-		blocksize = (int)(1 / maxslope);
+		blocksize = (int)(1 / max_slope);
 	}
 
-	// This adds one if there is a remainder;
 	numblocks = 0; 
 
 	Asliverdrift = ( int ) ( maxslopeA * rsliver_width );
@@ -706,13 +705,13 @@ void argo::initCalculatedParams()	{
 	Adiffletpoints = ( totaldriftA + Asliverdrift ) * 2 + 1;  //get factor of two correct here.
 	Bdiffletpoints = ( totaldriftB + Bsliverdrift ) * 2 + 1;
 	
-	numblocks = ( rbase_height - totaldriftB - 2 * Bsliverdrift - MaxB0 ) / blocksize;
+	numblocks = ( rbase_height - totaldriftB - 2 * Bsliverdrift - B0_max ) / blocksize;
 
 	Apoints = totaldriftA * 2 + 1;
 	Bpoints = totaldriftB * 2 + 1;
 	num_sliver_blocks = rsliver_width / blocksize;
 	sliver_block_width = rsliver_width / num_sliver_blocks;
-	dyn_diff_length = numblocks * Apoints * Bpoints;
+	dyn_diffs_size = numblocks * Apoints * Bpoints;
 }
 
 /**
@@ -721,50 +720,50 @@ void argo::initCalculatedParams()	{
 */
 void argo::initCombos()	{
 	// Make lists of all vaues of A1,A2,A3, B1,B2,B3 to try
-	number_of_A_combos = ((int)(a1_Max / a1_step) * 2 + 1) *
-		((int)(a2_Max / a2_step) * 2 + 1) *
-		((int)(a3_Max / a3_step) * 2 + 1);
-	combos_store.A_combos = new param_combo[number_of_A_combos];
-	long int A_combos_counter = 0;
-	for (double a3 = -a3_Max; a3 <= a3_Max + a3_step / 2; a3 += a3_step) {
+	A_combos_size = ((int)(a1_max / a1_step) * 2 + 1) *
+		((int)(a2_max / a2_step) * 2 + 1) *
+		((int)(a3_max / a3_step) * 2 + 1);
+	combos.A_combos = new param_combo[A_combos_size];
+	long int count = 0;
+	for (double a3 = -a3_max; a3 <= a3_max + a3_step / 2; a3 += a3_step) {
 		double p2_term1 = -1.5 * rbase_height * a3;
 		double p1_term1 = 0.5 * rbase_height * rbase_height * a3;
-		for (double a2 = -a2_Max; a2 <= a2_Max + a2_step / 2; a2 += a2_step) {
+		for (double a2 = -a2_max; a2 <= a2_max + a2_step / 2; a2 += a2_step) {
 			double p1_term2 = -a2 * rbase_height;
-			for (double a1 = -a1_Max; a1 <= a1_Max + a1_step / 2; a1 += a1_step) {
-				combos_store.A_combos[A_combos_counter].P1 = a1 + p1_term2 + p1_term1;
-				combos_store.A_combos[A_combos_counter].P2 = a2 + p2_term1;
-				combos_store.A_combos[A_combos_counter].P3 = a3;
-				++A_combos_counter;
+			for (double a1 = -a1_max; a1 <= a1_max + a1_step / 2; a1 += a1_step) {
+				combos.A_combos[count].P1 = a1 + p1_term1 + p1_term2;
+				combos.A_combos[count].P2 = a2 + p2_term1;
+				combos.A_combos[count].P3 = a3;
+				++count;
 			}
 		}
 	}
 
-	number_of_B_combos = ((int)(b1_Max / b1_step) * 2 + 1) *
-		((int)(b2_Max / b2_step) * 2 + 1) *
-		((int)(b3_Max / b3_step) * 2 + 1);
-	combos_store.B_combos = new param_combo[number_of_B_combos];
-	long int B_combos_counter = 0;
-	for (double b3 = -b3_Max; b3 <= b3_Max + b3_step / 2; b3 += b3_step) {
+	B_combos_size = ((int)(b1_max / b1_step) * 2 + 1) *
+		((int)(b2_max / b2_step) * 2 + 1) *
+		((int)(b3_max / b3_step) * 2 + 1);
+	combos.B_combos = new param_combo[B_combos_size];
+	count = 0;
+	for (double b3 = -b3_max; b3 <= b3_max + b3_step / 2; b3 += b3_step) {
 		double p2_term1 = -1.5 * rbase_height * b3;
 		double p1_term1 = 0.5 * rbase_height * rbase_height * b3;
-		for (double b2 = -b2_Max; b2 <= b2_Max + b2_step / 2; b2 += b2_step) {
+		for (double b2 = -b2_max; b2 <= b2_max + b2_step / 2; b2 += b2_step) {
 			double p1_term2 = -b2 * rbase_height;
-			for (double b1 = -b1_Max; b1 <= b1_Max + b1_step / 2; b1 += b1_step) {
-				combos_store.B_combos[B_combos_counter].P1 = b1 + p1_term2 + p1_term1;
-				combos_store.B_combos[B_combos_counter].P2 = b2 + p2_term1;
-				combos_store.B_combos[B_combos_counter].P3 = b3;
-				++B_combos_counter;
+			for (double b1 = -b1_max; b1 <= b1_max + b1_step / 2; b1 += b1_step) {
+				combos.B_combos[count].P1 = b1 + p1_term1 + p1_term2;
+				combos.B_combos[count].P2 = b2 + p2_term1;
+				combos.B_combos[count].P3 = b3;
+				++count;
 			}
 		}
 	}
-	std::sort(combos_store.A_combos, (combos_store.A_combos + (number_of_A_combos)));
-	std::sort(combos_store.B_combos, (combos_store.B_combos + (number_of_B_combos)));
+	std::sort(combos.A_combos, (combos.A_combos + (A_combos_size)));
+	std::sort(combos.B_combos, (combos.B_combos + (B_combos_size)));
 }
 
 void argo::initBetaGamma()	{
 	// Initialize array for dynamic_diffs once.
-	beta_gamma_store.dynamic_diffs = new beta_values[dyn_diff_length];
+	beta_gamma_store.dynamic_diffs = new beta_values[dyn_diffs_size];
 
 
 	int smin = rbase_width / 2 - rsliver_width / 2;
@@ -788,9 +787,9 @@ void argo::initBetaGamma()	{
 					partial_sum1 = 0;
 					partial_sum2 = 0;
 					partial_sum3 = 0;
-					for ( long int y = MaxB0 - totaldriftB + j + b * blocksize,
-							ys = MaxB0 + Bsliverdrift + b * blocksize;
-							ys < MaxB0 + ( b + 1 ) * blocksize + Bsliverdrift;
+					for ( long int y = B0_max - totaldriftB + j + b * blocksize,
+							ys = B0_max + Bsliverdrift + b * blocksize;
+							ys < B0_max + ( b + 1 ) * blocksize + Bsliverdrift;
 							++y, ++ys ) {
 						// Skip all negative elements.
 						if ( y < 0 ) {
@@ -842,7 +841,7 @@ void argo::performGridSearch(bool verbose)	{
 	mult1 = numblocks * Apoints;
 
 	for (int i = 0; i < numblocks; ++i) {
-		yb_arr[i] = i * blocksize + MaxB0; //+ Bsliverdrift;
+		yb_arr[i] = i * blocksize + B0_max; //+ Bsliverdrift;
 		yb2_arr[i] = yb_arr[i] * yb_arr[i];
 		yb3_arr[i] = yb2_arr[i] * yb_arr[i];
 		yb4_arr[i] = yb3_arr[i] * yb_arr[i];
@@ -854,23 +853,23 @@ void argo::performGridSearch(bool verbose)	{
 	//Incorporate actual sliver_width into calculation, no hard-wiring to 32.
 	//Refill DIFFS
 	long int Aindex_f = 0, Bindex_f = 0;
-	for (long int Bindex_i = 0; Bindex_i < number_of_B_combos - 1; Bindex_i = Bindex_f) {
-		double B1_i = combos_store.B_combos[Bindex_i].P1;
+	for (long int Bindex_i = 0; Bindex_i < B_combos_size - 1; Bindex_i = Bindex_f) {
+		double B1_i = combos.B_combos[Bindex_i].P1;
 		double B1_f = B1_i + .01;	//(1.0/32);
 		//search ahead for index Bi_f
-		for (Bindex_f = Bindex_i + 1; (combos_store.B_combos[Bindex_f].P1 < B1_f) && (Bindex_f < number_of_B_combos); ++Bindex_f);
+		for (Bindex_f = Bindex_i + 1; (combos.B_combos[Bindex_f].P1 < B1_f) && (Bindex_f < B_combos_size); ++Bindex_f);
 
-		for (long int Aindex_i = 0; Aindex_i < number_of_A_combos - 1; Aindex_i = Aindex_f) {
-			double A1_i = combos_store.A_combos[Aindex_i].P1;
+		for (long int Aindex_i = 0; Aindex_i < A_combos_size - 1; Aindex_i = Aindex_f) {
+			double A1_i = combos.A_combos[Aindex_i].P1;
 			double A1_f = A1_i + .01;		//(1.0/32);
 			//search ahead for index Ai_f
-			for (Aindex_f = Aindex_i + 1; (combos_store.A_combos[Aindex_f].P1 < A1_f) && (Aindex_f < number_of_A_combos); ++Aindex_f);
+			for (Aindex_f = Aindex_i + 1; (combos.A_combos[Aindex_f].P1 < A1_f) && (Aindex_f < A_combos_size); ++Aindex_f);
 			
 			// Empty out array of beta values.
 			if (beta_gamma_store.dynamic_diffs != 0)	{
 				delete[] beta_gamma_store.dynamic_diffs;
 			}
-			beta_gamma_store.dynamic_diffs = new beta_values[dyn_diff_length];
+			beta_gamma_store.dynamic_diffs = new beta_values[dyn_diffs_size];
 
 			// Populate array with new beta values.
 			long int diffs_address;
@@ -880,9 +879,9 @@ void argo::performGridSearch(bool verbose)	{
 			int totY;
 			int blocktimesApoints = Apoints * numblocks;
 			long A0_B0_adj_inc = numblocks;  //A0increase is now assumed to be 1.
-			long MaxA0_times_numblocks = MaxA0 * numblocks;
-			long B0_adj_min = -MaxB0 * blocktimesApoints;
-			long B0_adj_max = MaxB0 * blocktimesApoints;
+			long MaxA0_times_numblocks = A0_max * numblocks;
+			long B0_adj_min = -B0_max * blocktimesApoints;
+			long B0_adj_max = B0_max * blocktimesApoints;
 			//long BO_adj_inc = B0increase*numblocks*Apoints;
 			long BO_adj_inc = blocktimesApoints;  //B0increase is now assumed to be 1.
 			int finalAddress = -mult3;
@@ -930,12 +929,12 @@ void argo::performGridSearch(bool verbose)	{
 			tbb::parallel_for((long int)Bindex_i, Bindex_f, (long int)1, [&](long int Bindex)
 			{
 				for (long int Aindex = Aindex_i; Aindex < Aindex_f; ++Aindex) {
-					double B1 = combos_store.B_combos[Bindex].P1;
-					double B2 = combos_store.B_combos[Bindex].P2;
-					double B3 = combos_store.B_combos[Bindex].P3;
-					double A1 = combos_store.A_combos[Aindex].P1;
-					double A2 = combos_store.A_combos[Aindex].P2;
-					double A3 = combos_store.A_combos[Aindex].P3;
+					double B1 = combos.B_combos[Bindex].P1;
+					double B2 = combos.B_combos[Bindex].P2;
+					double B3 = combos.B_combos[Bindex].P3;
+					double A1 = combos.A_combos[Aindex].P1;
+					double A2 = combos.A_combos[Aindex].P2;
+					double A3 = combos.A_combos[Aindex].P3;
 
 					for (long B0_adj = B0_adj_min; B0_adj <= B0_adj_max; B0_adj += BO_adj_inc) {
 						long A0_B0_adj_max = MaxA0_times_numblocks + B0_adj;
@@ -1024,7 +1023,7 @@ void argo::performGridSearch(bool verbose)	{
 
 								function += sum;
 								if (function > results.bestdiff)	{
-									results.iterationsIgnored += numblocks - (i + 1);
+									results.iterations_ignored += numblocks - (i + 1);
 									break;
 								}
 							}
@@ -1066,24 +1065,24 @@ void argo::performSimplexRoutine()	{
 
 	// These are how you should fill the x array. Use this initialization 
 	// if you haven't skipped the grid search
-	x[0] = results.bestA0 * precision;
-	x[1] = results.bestB0 * precision;
-	x[2] = results.bestA1;
-	x[3] = results.bestB1 + 1;
-	x[4] = results.bestA2 / precision;
-	x[5] = results.bestB2 / precision;
-	x[6] = results.bestA3 / (precision * precision);
-	x[7] = results.bestB3 / (precision * precision);
-	x[8] = results.bestC0;
-	x[9] = results.bestC1;
-	x[10] = results.bestC2;
-	x[11] = results.bestC3;
+	grid_best[0] = results.bestA0 * precision;
+	grid_best[1] = results.bestB0 * precision;
+	grid_best[2] = results.bestA1;
+	grid_best[3] = results.bestB1 + 1;
+	grid_best[4] = results.bestA2 / precision;
+	grid_best[5] = results.bestB2 / precision;
+	grid_best[6] = results.bestA3 / (precision * precision);
+	grid_best[7] = results.bestB3 / (precision * precision);
+	grid_best[8] = results.bestC0;
+	grid_best[9] = results.bestC1;
+	grid_best[10] = results.bestC2;
+	grid_best[11] = results.bestC3;
 
 	// Setup precision for simplex.  
 	// These values are all based on the changes in the parameters that will cause at most a shift of 
 	// 0.1 pixel.
 	for (int i = 0; i < 12; ++i)	{
-		z[i] = x[i];
+		simplex_best[i] = grid_best[i];
 	}
 	
 	precisionArr[0] = 0.1;
@@ -1099,21 +1098,21 @@ void argo::performSimplexRoutine()	{
 	precisionArr[10] = 0.1 / pow(images_store.orig_base.height, 2.0);
 	precisionArr[11] = 0.1 / pow(images_store.orig_base.height, 3.0);
 
-	simplex(&images_store.orig_base, &images_store.orig_sliver, x, z, 12, precisionArr, reflectParam,
-		contractParam, growthParam, haltParam,
-		maxRefineIterationsParam);
+	simplex(&images_store.orig_base, &images_store.orig_sliver, grid_best, simplex_best, 12, precisionArr, simplex_reflect,
+		simplex_contract, simplex_growth, simplex_halt,
+		simplex_iterations);
 }
 
 void argo::performImageCorrection()	{
 	// Perform final warp, and write the output tiff
-	double aterms[4] = { z[0], z[2], z[4], z[6] };
-	double bterms[4] = { z[1], z[3], z[5], z[7] };
-	double cterms[4] = { z[8], z[9], z[10], z[11] };
+	double aterms[4] = { simplex_best[0], simplex_best[2], simplex_best[4], simplex_best[6] };
+	double bterms[4] = { simplex_best[1], simplex_best[3], simplex_best[5], simplex_best[7] };
+	double cterms[4] = { simplex_best[8], simplex_best[9], simplex_best[10], simplex_best[11] };
 
 	image_basic final(images_store.orig_base.width, images_store.orig_base.height, images_store.orig_base.get_color_mode());
 	warp_image(&images_store.orig_base, images_store.orig_base.width, images_store.orig_base.height, aterms, bterms, cterms, 1, &final);
 
-	std::string finalstring = rundata1;
+	std::string finalstring = base_name;
 	std::basic_string < char > finalmarkerstring("_corrected");
 	finalstring.insert(finalstring.rfind("."), finalmarkerstring);
 	final.file_write_tiff(finalstring);
@@ -1141,35 +1140,35 @@ void argo::correctImages(int argc, char* argv[])	{
 	readImages();
 	initCalculatedParams();
 	time1 = clock();
-	times_store.image_read_time = ((double)time1 - (double)time0) / 1000;
+	times.image_read_time = ((double)time1 - (double)time0) / 1000;
 
 	time0 = clock();
 	initCombos();
 	time1 = clock();
-	times_store.combos_time = ((double)time1 - (double)time0) / 1000;
+	times.combos_time = ((double)time1 - (double)time0) / 1000;
 
 	time0 = clock();
 	initBetaGamma();
 	time1 = clock();
-	times_store.diffs_time = ((double)time1 - (double)time0) / 1000;
+	times.diffs_time = ((double)time1 - (double)time0) / 1000;
 
 	time0 = clock();
 	performGridSearch(false);
 	time1 = clock();
-	times_store.grid_time = ((double)time1 - (double)time0) / 1000;
+	times.grid_time = ((double)time1 - (double)time0) / 1000;
 
 	time0 = clock();
 	performSimplexRoutine();
 	time1 = clock();
-	times_store.simplex_time = ((double)time1 - (double)time0) / 1000;
+	times.simplex_time = ((double)time1 - (double)time0) / 1000;
 
 	time0 = clock();
 	performImageCorrection();
 	time1 = clock();
-	times_store.image_write_time = ((double)time1 - (double)time0) / 1000;
+	times.image_write_time = ((double)time1 - (double)time0) / 1000;
 
 	int endtime = clock();
-	times_store.total_time = (double)(endtime - begintime) * .001;
+	times.total_time = (double)(endtime - begintime) * .001;
 }
 
 void argo::correctImages(int argc, char* argv[], bool verbose)	{
@@ -1190,17 +1189,17 @@ void argo::correctImages(int argc, char* argv[], bool verbose)	{
 	readImages();
 	initCalculatedParams();
 	time1 = clock();
-	times_store.image_read_time = ((double)time1 - (double)time0) / 1000;
+	times.image_read_time = ((double)time1 - (double)time0) / 1000;
 
 	time0 = clock();
 	initCombos();
 	time1 = clock();
-	times_store.combos_time = ((double)time1 - (double)time0) / 1000;
+	times.combos_time = ((double)time1 - (double)time0) / 1000;
 
 	time0 = clock();
 	initBetaGamma();
 	time1 = clock();
-	times_store.diffs_time = ((double)time1 - (double)time0) / 1000;
+	times.diffs_time = ((double)time1 - (double)time0) / 1000;
 
 	if (verbose)	{
 		logCalculatedParams();
@@ -1211,7 +1210,7 @@ void argo::correctImages(int argc, char* argv[], bool verbose)	{
 	time0 = clock();
 	performGridSearch(verbose);
 	time1 = clock();
-	times_store.grid_time = ((double)time1 - (double)time0) / 1000;
+	times.grid_time = ((double)time1 - (double)time0) / 1000;
 
 	if (verbose)	{
 		logGridSearchInfo();
@@ -1220,7 +1219,7 @@ void argo::correctImages(int argc, char* argv[], bool verbose)	{
 	time0 = clock();
 	performSimplexRoutine();
 	time1 = clock();
-	times_store.simplex_time = ((double)time1 - (double)time0) / 1000;
+	times.simplex_time = ((double)time1 - (double)time0) / 1000;
 
 	if (verbose)	{
 		logSimplexRoutineInfo();
@@ -1229,10 +1228,10 @@ void argo::correctImages(int argc, char* argv[], bool verbose)	{
 	time0 = clock();
 	performImageCorrection();
 	time1 = clock();
-	times_store.image_write_time = ((double)time1 - (double)time0) / 1000;
+	times.image_write_time = ((double)time1 - (double)time0) / 1000;
 
 	int endtime = clock();
-	times_store.total_time = (double)(endtime - begintime) * .001;
+	times.total_time = (double)(endtime - begintime) * .001;
 
 	if (verbose)	{
 		logProgramInformation();

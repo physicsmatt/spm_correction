@@ -29,33 +29,32 @@ public:
 	struct	{
 		double combos_time = 0, diffs_time = 0,
 		grid_time = 0, simplex_time = 0,
-		image_read_time = 0, image_write_time = 0;
-		double total_time = 0;
-	} times_store;
+		image_read_time = 0, image_write_time = 0, total_time = 0;
+	} times;
 
 	// File names for sliver and base images.
-	std::string rundata1, rundata2;
+	std::string base_name, sliver_name;
 
 	// Size of a block in pixels.
 	int blocksize;
 
 	// Maximum possible constant shift in pixels.
-	int MaxA0, MaxB0;
+	int A0_max, B0_max;
 
 	/* Maximum linear shift, as fraction of image size
 	* (if a1_Max = 0.02, and image height is 500 pixels,
 	* this term causes max shift at top of image of 10 pixels)
 	*/
-	double a1_Max, b1_Max;
+	double a1_max, b1_max;
 
 	/* Fractional shift, relative to a1_max.
 	* If a1_max implies max shift of 10 pixels at top, a2_Multiplier of 0.5 causes deviation
 	* from linearity of 5 pixels at midpoint.
 	*/
-	double a2_Multiplier, b2_Multiplier;
+	double a2_mult, b2_mult;
 
 	// Fractional shift for cubic term a3, also relative to shift caused by a1_max.
-	double a3_Multiplier, b3_Multiplier;
+	double a3_mult, b3_mult;
 
 	/**
 	* For initial grid search, image is rescaled (down-sampled) by this factor.
@@ -66,11 +65,11 @@ public:
 	/**
 	* These parameters control the simplex routine.
 	*/
-	double growthParam, contractParam, reflectParam, haltParam;
-	int maxRefineIterationsParam;
+	double simplex_growth, simplex_contract, simplex_reflect, simplex_halt;
+	int simplex_iterations;
 
 	int rsliver_width, rsliver_height, rbase_width, rbase_height, numblocks;
-	double a2_Max, a3_Max, b2_Max, b3_Max;
+	double a2_max, a3_max, b2_max, b3_max;
 	double a1_step, a2_step, a3_step, b1_step, b2_step, b3_step;
 	long totaldriftA, totaldriftB;
 
@@ -79,8 +78,9 @@ public:
 	int Apoints, Bpoints;
 	int num_sliver_blocks;
 	int sliver_block_width;
-	unsigned long int dyn_diff_length;
-	long int number_of_A_combos, number_of_B_combos;
+
+	unsigned long int dyn_diffs_size;
+	unsigned long int A_combos_size, B_combos_size;
 
 	struct	{
 		image_basic orig_sliver, orig_base, resamp_sliver, resamp_base;
@@ -92,7 +92,7 @@ public:
 		double bestC0, bestC1, bestC2, bestC3;
 		double bestdiff;
 		unsigned long long count;
-		unsigned long long iterationsIgnored;
+		unsigned long long iterations_ignored;
 	} results;
 
 	struct	{
@@ -103,12 +103,12 @@ public:
 	struct	{
 		param_combo * A_combos;
 		param_combo * B_combos;
-	} combos_store;
+	} combos;
 
 	// Number of parameters to be optimized 
 	int n = 12;
-	double x[12];
-	double z[12];
+	double grid_best[12];
+	double simplex_best[12];
 	double precisionArr[12];
 
 	
