@@ -21,14 +21,12 @@ this software is worth what you paid for it, and you paid zero.
 #include "image_basic.h"
 #include <iostream>
 #include <time.h>
-//#include <fstream>	Refer to argo includes
-//#include <IStream>
 #include <vector>
 #include "Eigen\Eigen"
-#include <ppl.h>
-using namespace std;
+#include <tbb\parallel_for.h>
+#include <tbb\combinable.h>
 
-extern float interp_pixel_float(image_basic *baseImage, float x, float y);
+//extern float interp_pixel_float(image_basic *baseImage, float x, float y);
 extern double interp_pixel(image_basic *baseImage, double x, double y);
 //extern double interp_pixelArray(/*vector<vector<double>> baseImage,*/int width,int sheight, double x, double y);
 
@@ -68,18 +66,18 @@ long double f_x_r, f_x_e, f_x_c, f_x_j, f_x_a;
 int min2(int x, int y)
 {
 	if (x < y)
-		return x;
+		return (x);
 	else
-		return y;
+		return (y);
 }
 
 
 int max2(int x, int y)
 {
 	if (x < y)
-		return y;
+		return (y);
 	else
-		return x;
+		return (x);
 }
 
 
@@ -90,8 +88,8 @@ image_basic *base;
 image_basic *sliver;
 int *basesize;
 int *sliversize;
-vector<vector<int> > base2;
-vector<vector<int> > sliver2;
+std::vector<std::vector<int> > base2;
+std::vector<std::vector<int> > sliver2;
 
 double interp_pixelArray(int width, int height, double x, double y, int ys) {
 
@@ -184,9 +182,9 @@ double myfunc(double z[])
 	double C1 = z[9];
 	double C2 = z[10];
 	double C3 = z[11];
-	Concurrency::combinable<double> sums;
-	Concurrency::combinable<double> areas;
-	Concurrency::parallel_for(1, sliversize[1], 1, [&](int ys) { //think about whether to reverse these two loops.
+	tbb::combinable<double> sums;
+	tbb::combinable<double> areas;
+	tbb::parallel_for(1, sliversize[1], 1, [&](int ys) { //think about whether to reverse these two loops.
 		//sum+= C0*C0 + (C1-1)*(C1-1) + (C2-2)*(C2-2) +(C3-3)*(C3-3);
 		//for (int ys=0; ys<sliversize[1];++ys) { //think about whether to reverse these two loops.
 		for (int xs = 0; xs<sliversize[0]; ++xs) {   //fix so not starting at zero every time, only goes as far as needed
@@ -228,8 +226,8 @@ double myfunc(double z[])
 			}
 		}
 	});
-	sum = sums.combine(plus<double>());
-	area = areas.combine(plus<double>());
+	sum = sums.combine(std::plus<double>());
+	area = areas.combine(std::plus<double>());
 	/*	printf("at my function:\n");
 	for(int j=0; j<8; j++) printf("    X(%3d) = %e\n",
 	j, z[j]);
@@ -261,10 +259,10 @@ void copySliver(image_basic *sliverImage){
 int simplex(image_basic *baseImage, image_basic *sliverImage, double x[], double z[], int n,
 	double precision[], double alpha, double beta, double gamma, double errhalt, int maxi)
 {
-
+	/*
 	// Output values of x and z arrays (used to debug simplex)
 	printf("Trying to output log data\n\n");
-	string outputFileName = "output_x_array.txt";
+	std::string outputFileName = "output_x_array.txt";
 	FILE *logfile = fopen(outputFileName.c_str(), "w");
 	if (logfile == NULL)
 	{
@@ -280,10 +278,11 @@ int simplex(image_basic *baseImage, image_basic *sliverImage, double x[], double
 
 		printf("------End of Program------\n");
 	}
+	
 
 	// Output values of params (used to debug simplex)
 	printf("Trying to output log data\n\n");
-	string outputFileName3 = "output_params.txt";
+	std::string outputFileName3 = "output_params.txt";
 	FILE *logfile3 = fopen(outputFileName3.c_str(), "w");
 	if (logfile3 == NULL)
 	{
@@ -300,9 +299,9 @@ int simplex(image_basic *baseImage, image_basic *sliverImage, double x[], double
 
 		printf("------End of Program------\n");
 	}
+	*/
 
-
-	cout << "begin\n";
+	printf("Begin Simplex Routine!\n");
 	copyBase(baseImage);
 	copySliver(sliverImage);
 	sliversize = new int[2];
@@ -311,9 +310,11 @@ int simplex(image_basic *baseImage, image_basic *sliverImage, double x[], double
 	basesize = new int[2];
 	basesize[0] = base->width;
 
+	/*
+
 	// Output values of some random tests (used to debug simplex)
 	printf("Trying to output log data\n\n");
-	string outputFileName4 = "testoutput.txt";
+	std::string outputFileName4 = "testoutput.txt";
 	FILE *logfile4 = fopen(outputFileName4.c_str(), "w");
 	if (logfile4 == NULL)
 	{
@@ -329,19 +330,19 @@ int simplex(image_basic *baseImage, image_basic *sliverImage, double x[], double
 		fprintf(logfile4, "VALUES FROM BASE:    %d, %d, %d, %d\n", base->fast_get(0, 0), base->fast_get(0, base->height - 1), base->fast_get(base->width - 1, 0), base->fast_get(base->width - 1, base->height - 1));
 		fprintf(logfile4, "VALUES FROM SLIVER:    %d, %d, %d, %d\n", sliver->fast_get(0, 0), sliver->fast_get(0, sliver->height - 1), sliver->fast_get(sliver->width - 1, 0), sliver->fast_get(sliver->width - 1, sliver->height - 1));
 		fprintf(logfile4, "VALUES FROM MYFUNC: %f\n", myfunc(z));
-		fprintf(logfile4, "INTERP: %f %f %f %f", interp_pixel(base, 1.2, 3.3));
-		fprintf(logfile4, "INTERP: %f %f %f %f", interp_pixel(base, 3.5, 4.3));
-		fprintf(logfile4, "INTERP: %f %f %f %f", interp_pixel(base, 5.9, 7.1));
+		fprintf(logfile4, "INTERP: %f", interp_pixel(base, 1.2, 3.3));
+		fprintf(logfile4, "INTERP: %f", interp_pixel(base, 3.5, 4.3));
+		fprintf(logfile4, "INTERP: %f", interp_pixel(base, 5.9, 7.1));
 		fclose(logfile4);
 	}
-
-	//	return 1;
-
+	
+	*/
 
 
 	basesize[1] = base->height;
 	double t0;
-	int i, j, ok, pass;
+	//int ok;	Never used
+	int i, j, pass;
 	int max, min;
 	double c;
 	double ymax;
@@ -385,7 +386,6 @@ int simplex(image_basic *baseImage, image_basic *sliverImage, double x[], double
 	/* go through all of the points of the Simplex & find max, min */
 	max = 0; min = 0;
 	fvals[0] = myfunc(x);
-	cout << "initialized myfunc\n";
 	ymax = fvals[0];  ymin = ymax;
 
 	//ymin = F_L, ymax = F_A
@@ -464,9 +464,9 @@ int simplex(image_basic *baseImage, image_basic *sliverImage, double x[], double
 			centroid[j] /= /*centroid[j]/ */ ((double)n);
 		}
 
-		if (0 == (pass % (PRINTEM)))
+		if ( (pass % (PRINTEM)) == 0 )
 		{
-			cout << operations << "\n";
+			printf("%d\n", operations);
 			operations = 0;
 			printf("\n ITERATION %4d     func = %20.12lf\n",
 				pass, ymin);
@@ -665,7 +665,7 @@ int simplex(image_basic *baseImage, image_basic *sliverImage, double x[], double
 			err += (meany - fvals[i]) * (meany - fvals[i]);
 		err = sqrt(err / ((double)(n + 1)));
 		if (debug == false){
-			cout << "\nfxc: " << f_x_c << "\nfxr: " << f_x_r << "\nymax: " <<
+			std::cout << "\nfxc: " << f_x_c << "\nfxr: " << f_x_r << "\nymax: " <<
 				ymax << "\nymin: " << ymin << "\nfxe: " << f_x_e << "\ny_a: "
 				<< y_a << "\n";
 			getchar();
@@ -692,10 +692,10 @@ int simplex(image_basic *baseImage, image_basic *sliverImage, double x[], double
 	printf("\n\nSIMPLEX took %ld evaluations; returned\n", funevals);
 	printf("%f %f %f %f %f \n", Simplex[min][0], Simplex[min][2], Simplex[min][18], Simplex[min][19], Simplex[min][16]);
 
-
+	/*
 	// Output modified z array values (used to debug simplex)
 	printf("Trying to output log data\n\n");
-	string outputFileName2 = "output_z_array.txt";
+	std::string outputFileName2 = "output_z_array.txt";
 	FILE *logfile2 = fopen(outputFileName2.c_str(), "w");
 	if (logfile2 == NULL)
 	{
@@ -711,6 +711,8 @@ int simplex(image_basic *baseImage, image_basic *sliverImage, double x[], double
 
 		printf("------End of Program------\n");
 	}
+
+	*/
 
 	return 1;
 }
