@@ -106,7 +106,7 @@ int image_basic::file_read_pgm(const std::string &filename)
 {
 	ifstream file;
 	unsigned char buffer[256];
-	unsigned int x, y;
+	int x, y;
 	int flag, position_begin, position_end, value[3], offset_row;
 	std::string line;
 

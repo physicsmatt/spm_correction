@@ -31,7 +31,7 @@
   <PropertyGroup Label="Globals">
     <ProjectGuid>{B69CB6F1-B196-489E-9D2D-015F2BFB307A}</ProjectGuid>
     <RootNamespace>Argo</RootNamespace>
-    <ProjectName>ArgoThreaded</ProjectName>
+    <ProjectName>Argo</ProjectName>
   </PropertyGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.Default.props" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'" Label="Configuration">
@@ -78,56 +78,88 @@
   <PropertyGroup Label="UserMacros" />
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <OutDir>$(SolutionDir)\bin\</OutDir>
+    <IntDir>$(SolutionDir)\temp\</IntDir>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <RunCodeAnalysis>true</RunCodeAnalysis>
+    <OutDir>$(SolutionDir)\bin\</OutDir>
+    <IntDir>$(SolutionDir)\temp\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
+    <OutDir>$(SolutionDir)\bin\</OutDir>
+    <IntDir>$(SolutionDir)\temp\</IntDir>
+  </PropertyGroup>
+  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
+    <OutDir>$(SolutionDir)\bin\</OutDir>
+    <IntDir>$(SolutionDir)\temp\</IntDir>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <EnablePREfast>true</EnablePREfast>
       <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <SuppressStartupBanner>false</SuppressStartupBanner>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <FloatingPointExceptions>true</FloatingPointExceptions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <Profile>true</Profile>
       <AdditionalLibraryDirectories>$(SolutionDir)\..\tbb\lib\ia32\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <Version>1.2</Version>
+      <SuppressStartupBanner>false</SuppressStartupBanner>
+      <LargeAddressAware>true</LargeAddressAware>
     </Link>
     <CustomBuildStep>
-      <Inputs>
-      </Inputs>
+      <Inputs>$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.dll;$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.pdb</Inputs>
+      <Outputs>Copying required Intel Thread Building Blocks DLL's.</Outputs>
+      <Command>xcopy /d /y "$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.*" "$(TargetDir)"</Command>
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>Level4</WarningLevel>
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <EnablePREfast>true</EnablePREfast>
       <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <SuppressStartupBanner>false</SuppressStartupBanner>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <FloatingPointExceptions>true</FloatingPointExceptions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <Profile>true</Profile>
       <AdditionalLibraryDirectories>$(SolutionDir)\..\tbb\lib\intel64\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <Version>1.2</Version>
+      <SuppressStartupBanner>false</SuppressStartupBanner>
+      <LargeAddressAware>true</LargeAddressAware>
     </Link>
     <CustomBuildStep>
-      <Inputs>
-      </Inputs>
+      <Inputs>$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.dll;$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.pdb</Inputs>
+      <Outputs>Copying required Intel Thread Building Blocks DLL's.</Outputs>
+      <Command>xcopy /d /y "$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.*" "$(TargetDir)"</Command>
     </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>Level4</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <SuppressStartupBanner>false</SuppressStartupBanner>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <FloatingPointExceptions>true</FloatingPointExceptions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -135,16 +167,28 @@
       <OptimizeReferences>true</OptimizeReferences>
       <Profile>true</Profile>
       <AdditionalLibraryDirectories>$(SolutionDir)\..\tbb\lib\ia32\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <Version>1.2</Version>
+      <SuppressStartupBanner>false</SuppressStartupBanner>
+      <LargeAddressAware>true</LargeAddressAware>
     </Link>
+    <CustomBuildStep>
+      <Outputs>Copying required Intel Thread Building Blocks DLL's.</Outputs>
+      <Command>xcopy /d /y "$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb.*" "$(TargetDir)"</Command>
+      <Inputs>$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb.dll;$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb.pdb</Inputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
-      <WarningLevel>Level3</WarningLevel>
+      <WarningLevel>Level4</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
       <FunctionLevelLinking>true</FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
+      <FloatingPointExceptions>true</FloatingPointExceptions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -152,7 +196,19 @@
       <OptimizeReferences>true</OptimizeReferences>
       <Profile>true</Profile>
       <AdditionalLibraryDirectories>$(SolutionDir)\..\tbb\lib\intel64\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <Version>1.2</Version>
+      <SuppressStartupBanner>true</SuppressStartupBanner>
+      <LargeAddressAware>true</LargeAddressAware>
     </Link>
+    <CustomBuildStep>
+      <Command>xcopy /d /y "$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb.*" "$(TargetDir)"</Command>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Outputs>Copying required Intel Thread Building Blocks DLL's.</Outputs>
+    </CustomBuildStep>
+    <CustomBuildStep>
+      <Inputs>$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb.dll;$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb.pdb</Inputs>
+    </CustomBuildStep>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">
