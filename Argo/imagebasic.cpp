@@ -106,7 +106,8 @@ int image_basic::file_read_pgm(const std::string &filename)
 {
 	ifstream file;
 	unsigned char buffer[256];
-	int flag, position_begin, position_end, value[3], x, y, offset_row;
+	unsigned int x, y;
+	int flag, position_begin, position_end, value[3], offset_row;
 	std::string line;
 
 	file.open(filename.c_str() , ios_base::in | ios_base::binary);
@@ -815,8 +816,8 @@ int image_basic::get(int x, int y) const
   // else
   // return 0;
   if(x >= 0)
-    if(x < width)
-      if(y >= 0)
+	if(x < width)
+	  if(y >= 0)
 	if(y < height)
 	  return fast_get(x, y);
 

@@ -7,15 +7,13 @@
     </Filter>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="argo.cpp" />
     <ClCompile Include="imagebasic.cpp" />
     <ClCompile Include="simplex.cpp" />
+    <ClCompile Include="object_argo.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="image_basic.h" />
     <ClInclude Include="simplex.h" />
-  </ItemGroup>
-  <ItemGroup>
-    <Text Include="README.txt" />
+    <ClInclude Include="argo.h" />
   </ItemGroup>
 </Project>
