@@ -1,0 +1,15 @@
+Argo Version 1.1.
+
+Compile using Visual Studio 2013.
+Requires the latest version of Eigen and Intel Thread Building Blocks (TBB).
+
+The latest version of Eigen can be retreived from : http://eigen.tuxfamily.org/.
+Similarly, the latest version of TBB can be retreived from : https://www.threadingbuildingblocks.org/.
+
+The VS2013 Solution looks for a "tbb" and "Eigen" folder one directory above the solution's directory as such :
+
+	Solution folder : "\Solution\Argo.sln"
+	tbb folder : "\Solution\..\tbb"
+	Eigen folder : "\Solution\..\Eigen"
+
+Alternatively, you can configure the solution itself by manually setting the required include folders for the compiler and linker.
