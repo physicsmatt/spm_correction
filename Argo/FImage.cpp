@@ -1,5 +1,12 @@
 #include "FImage.h"
 
+int doubleToInt(double val)	{
+	if (ceil(val) - val < 0.5)	{
+		return ((int) ceil(val));
+	}
+	return ((int) floor(val));
+}
+
 FImage::FImage(Metadata _meta)	{
 	loaded = false;
 	data = 0;
@@ -112,6 +119,16 @@ void FImage::load(string file)	{
 			}
 		}
 		break;
+	case FIT_DOUBLE:
+		_data = new double[pixels];
+		data = _data;
+		for (unsigned int y = 0; y < height; ++y)	{
+			double *bits = (double *)FreeImage_GetScanLine(img, y);
+			for (unsigned int x = 0; x < width; ++x)	{
+				data[x + width * y] = bits[x];
+			}
+		}
+		break;
 	default:
 		printf("Failed to load file %s!\n", filename);
 		loaded = false;
@@ -161,7 +178,7 @@ bool FImage::writeImage(string file)	{
 		for (unsigned int y = 0; y < height; ++y)	{
 			BYTE *bits = (BYTE *)FreeImage_GetScanLine(image, y);
 			for (unsigned int x = 0; x < width; ++x)	{
-				bits[x] = (BYTE) data[x + width * y];
+				bits[x] = (BYTE) doubleToInt(data[x + width * y]);
 			}
 		}
 		break;
@@ -169,7 +186,7 @@ bool FImage::writeImage(string file)	{
 		for (unsigned int y = 0; y < height; ++y)	{
 			short *bits = (short *)FreeImage_GetScanLine(image, y);
 			for (unsigned int x = 0; x < width; ++x)	{
-				bits[x] = (short) data[x + width * y];
+				bits[x] = (short) doubleToInt(data[x + width * y]);
 			}
 		}
 		break;
@@ -177,7 +194,7 @@ bool FImage::writeImage(string file)	{
 		for (unsigned int y = 0; y < height; ++y)	{
 			unsigned short *bits = (unsigned short *)FreeImage_GetScanLine(image, y);
 			for (unsigned int x = 0; x < width; ++x)	{
-				bits[x] = (unsigned short) data[x + width * y];
+				bits[x] = (unsigned short) doubleToInt(data[x + width * y]);
 			}
 		}
 		break;
@@ -186,6 +203,14 @@ bool FImage::writeImage(string file)	{
 			float *bits = (float *)FreeImage_GetScanLine(image, y);
 			for (unsigned int x = 0; x < width; ++x)	{
 				bits[x] = (float) data[x + width * y];
+			}
+		}
+		break;
+	case FIT_DOUBLE:
+		for (unsigned int y = 0; y < height; ++y)	{
+			double *bits = (double *)FreeImage_GetScanLine(image, y);
+			for (unsigned int x = 0; x < width; ++x)	{
+				bits[x] = data[x + width * y];
 			}
 		}
 		break;
