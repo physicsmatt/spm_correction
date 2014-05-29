@@ -1,5 +1,5 @@
 #include <iostream>
-#include "image_basic.h"
+#include "FImage.h"
 
 /**
 * Struct for holding the 6 Beta values used to evaluate the C coefficients.
@@ -71,19 +71,22 @@ public:
 	int rsliver_width, rsliver_height, rbase_width, rbase_height, numblocks;
 	double a2_max, a3_max, b2_max, b3_max;
 	double a1_step, a2_step, a3_step, b1_step, b2_step, b3_step;
-	long totaldriftA, totaldriftB;
+	long A_total_drift, B_total_drift;
 
-	int Asliverdrift, Bsliverdrift;
-	int Adiffletpoints, Bdiffletpoints;
-	int Apoints, Bpoints;
+	int A_sliver_drift, B_sliver_drift;
+	int A_difflet_points, B_difflet_points;
+	int A_points, B_points;
 	int num_sliver_blocks;
 	int sliver_block_width;
 
 	unsigned long int dyn_diffs_size;
-	unsigned long int A_combos_size, B_combos_size;
+	long int A_combos_size, B_combos_size;
 
 	struct	{
-		image_basic orig_sliver, orig_base, resamp_sliver, resamp_base;
+		FImage * orig_sliver;
+		FImage * orig_base;
+		FImage * resamp_sliver;
+		FImage * resamp_base;
 	} images_store;
 
 	struct	{

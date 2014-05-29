@@ -19,13 +19,14 @@
     </ProjectConfiguration>
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="imagebasic.cpp" />
+    <ClCompile Include="FImage.cpp" />
     <ClCompile Include="object_argo.cpp" />
     <ClCompile Include="simplex.cpp" />
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="argo.h" />
-    <ClInclude Include="image_basic.h" />
+    <ClInclude Include="FreeImage.h" />
+    <ClInclude Include="FImage.h" />
     <ClInclude Include="simplex.h" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
@@ -101,11 +102,15 @@
       <SDLCheck>true</SDLCheck>
       <EnablePREfast>true</EnablePREfast>
       <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet>
+      </EnableEnhancedInstructionSet>
       <SuppressStartupBanner>false</SuppressStartupBanner>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>
+      </MultiProcessorCompilation>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <FloatingPointExceptions>true</FloatingPointExceptions>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PreprocessorDefinitions>_MBCS;FREEIMAGE_LIB ;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -115,12 +120,19 @@
       <SuppressStartupBanner>false</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
       <LinkStatus>true</LinkStatus>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimaged.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Inputs>$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.dll;$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.pdb</Inputs>
       <Outputs>Copying required Intel Thread Building Blocks DLL's.</Outputs>
-      <Command>xcopy /d /y "$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.*" "$(TargetDir)"</Command>
+      <Command>xcopy /y "$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.*" "$(TargetDir)"</Command>
     </CustomBuildStep>
+    <PreBuildEvent>
+      <Command>del /f "$(TargetDir)\tbb*"</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Delete existing TBB files.</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <ClCompile>
@@ -129,11 +141,15 @@
       <SDLCheck>true</SDLCheck>
       <EnablePREfast>true</EnablePREfast>
       <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
-      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <EnableEnhancedInstructionSet>
+      </EnableEnhancedInstructionSet>
       <SuppressStartupBanner>false</SuppressStartupBanner>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>
+      </MultiProcessorCompilation>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <FloatingPointExceptions>true</FloatingPointExceptions>
+      <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
+      <PreprocessorDefinitions>_MBCS;FREEIMAGE_LIB ;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -143,25 +159,36 @@
       <SuppressStartupBanner>false</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
       <LinkStatus>true</LinkStatus>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimaged.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Inputs>$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.dll;$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.pdb</Inputs>
       <Outputs>Copying required Intel Thread Building Blocks DLL's.</Outputs>
-      <Command>xcopy /d /y "$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.*" "$(TargetDir)"</Command>
+      <Command>xcopy /y "$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.*" "$(TargetDir)"</Command>
     </CustomBuildStep>
+    <PreBuildEvent>
+      <Command>del /f "$(TargetDir)\tbb*"</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Delete existing TBB files.</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
-      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <FunctionLevelLinking>
+      </FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SuppressStartupBanner>false</SuppressStartupBanner>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>
+      </MultiProcessorCompilation>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <FloatingPointExceptions>true</FloatingPointExceptions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PreprocessorDefinitions>_MBCS;FREEIMAGE_LIB ;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -173,25 +200,36 @@
       <SuppressStartupBanner>false</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
       <LinkStatus>true</LinkStatus>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimage.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Outputs>Copying required Intel Thread Building Blocks DLL's.</Outputs>
-      <Command>xcopy /d /y "$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb.*" "$(TargetDir)"</Command>
+      <Command>xcopy /y "$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb.*" "$(TargetDir)"</Command>
       <Inputs>$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb.dll;$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb.pdb</Inputs>
     </CustomBuildStep>
+    <PreBuildEvent>
+      <Command>del /f "$(TargetDir)\tbb*"</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Delete existing TBB files.</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <ClCompile>
       <WarningLevel>Level4</WarningLevel>
       <Optimization>MaxSpeed</Optimization>
-      <FunctionLevelLinking>true</FunctionLevelLinking>
+      <FunctionLevelLinking>
+      </FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
       <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SuppressStartupBanner>true</SuppressStartupBanner>
-      <MultiProcessorCompilation>true</MultiProcessorCompilation>
+      <MultiProcessorCompilation>
+      </MultiProcessorCompilation>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <FloatingPointExceptions>true</FloatingPointExceptions>
+      <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
+      <PreprocessorDefinitions>_MBCS;FREEIMAGE_LIB ;%(PreprocessorDefinitions)</PreprocessorDefinitions>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
@@ -203,9 +241,10 @@
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
       <LinkStatus>true</LinkStatus>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimage.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
-      <Command>xcopy /d /y "$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb.*" "$(TargetDir)"</Command>
+      <Command>xcopy /y "$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb.*" "$(TargetDir)"</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Outputs>Copying required Intel Thread Building Blocks DLL's.</Outputs>
@@ -213,6 +252,12 @@
     <CustomBuildStep>
       <Inputs>$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb.dll;$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb.pdb</Inputs>
     </CustomBuildStep>
+    <PreBuildEvent>
+      <Command>del /f "$(TargetDir)\tbb*"</Command>
+    </PreBuildEvent>
+    <PreBuildEvent>
+      <Message>Delete existing TBB files.</Message>
+    </PreBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
   <ImportGroup Label="ExtensionTargets">

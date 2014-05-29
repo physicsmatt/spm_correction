@@ -21,9 +21,7 @@
  *-Printouts from simplex supressed.
  */
 
-//#define WINVER 0x0501 
 #define _CRT_SECURE_NO_WARNINGS
-#include "argo.h"
 #include <math.h>
 #include <time.h>
 #include <stdio.h>
@@ -31,6 +29,7 @@
 #include <algorithm>
 #include <tbb\parallel_for.h>
 #include <tbb\critical_section.h>
+#include "argo.h"
 #include "Eigen\Eigen"
 #include "simplex.h"
 
@@ -115,106 +114,6 @@ bool operator>=(const param_combo& a, const param_combo& b) {
 }
 
 /**
- * Returns pixel value from float x,y by bilerping (could use trilinear algorithm...)
- * @param baseImage pointer to image
- * @param x coordinate
- * @param y coordinate
- * @return pixel value as float
- */
-float interp_pixel_float(image_basic *baseImage, float x, float y) {
-
-	float s, t;
-	int image_width = baseImage->width;
-	int image_height = baseImage->height;
-	int left_val, right_val;
-	float top_val, bottom_val;
-
-	// Get integer coordinates for top left corner
-	int left_index = (int) x, top_index = (int) y;
-	int right_index;
-	int bottom_index;
-
-	// Get integer coordinates of bottom and right edges
-	if ( left_index > image_width )
-		right_index = left_index;             // Don't fall off the edge!
-	else
-		right_index = (int) ceil( x );             //left_index + 1;
-	if ( top_index > image_height )
-		bottom_index = top_index;             // Don't fall off the edge!
-	else
-		bottom_index = (int) ceil( y );             //top_index + 1;
-
-	// Interpolate across the top edge
-	s = x - (float) left_index;
-	t = y - (float) top_index;
-	left_val = baseImage->get( left_index, top_index );
-	right_val = baseImage->get( right_index, top_index );
-	// Linear interpolation recoded to only one multiply
-	top_val = s * (float) right_val + ( 1 - s ) * (float) left_val; //right_val + s * (left_val-right_val);
-
-	// Interpolate across the bottom edge
-	left_val = baseImage->get( left_index, bottom_index );
-	right_val = baseImage->get( right_index, bottom_index );
-	//	bottom_val = right_val + s * (left_val-right_val);
-	//Matt changed above to below
-	bottom_val = s * (float) right_val + ( 1 - s ) * (float) left_val;
-
-	// Interpolate between top and bottom
-	return ( t * bottom_val + ( 1 - t ) * top_val );	//(bottom_val + t * (top_val-bottom_val));
-
-}
-
-/**
- * Returns pixel value from double x,y by bilerping. Has more precision and similar runtime as interp_pixel_float.
- * @param baseImage pointer to image
- * @param x coordinate
- * @param y coordinate
- * @return pixel value as double
- */
-double interp_pixel(image_basic *baseImage, double x, double y) {
-
-	double s, t;
-	int image_width = baseImage->width;
-	int image_height = baseImage->height;
-	int left_val, right_val;
-	double top_val, bottom_val;
-
-	// Get integer coordinates for top left corner
-	int left_index = (int) x, top_index = (int) y;
-	int right_index;
-	int bottom_index;
-
-	// Get integer coordinates of bottom and right edges
-	if ( left_index > image_width )
-		right_index = left_index;             // Don't fall off the edge!
-	else
-		right_index = (int) ceil( x );             //left_index + 1;
-	if ( top_index > image_height )
-		bottom_index = top_index;             // Don't fall off the edge!
-	else
-		bottom_index = (int) ceil( y );             //top_index + 1;
-
-	// Interpolate across the top edge
-	s = x - (double) left_index;
-	t = y - (double) top_index;
-	left_val = baseImage->get( left_index, top_index );
-	right_val = baseImage->get( right_index, top_index );
-	// Linear interpolation recoded to only one multiply
-	top_val = s * right_val + ( 1 - s ) * ( left_val ); //right_val + s * (left_val-right_val);
-
-	// Interpolate across the bottom edge
-	left_val = baseImage->get( left_index, bottom_index );
-	right_val = baseImage->get( right_index, bottom_index );
-	//	bottom_val = right_val + s * (left_val-right_val);
-	//Matt changed above to below
-	bottom_val = s * right_val + ( 1 - s ) * ( left_val );
-
-	// Interpolate between top and bottom
-	return ( t * bottom_val + ( 1 - t ) * top_val );	//(bottom_val + t * (top_val-bottom_val));
-
-}
-
-/**
  * Based upon given parameter values, the base image is warped.
  *
  * @param baseImage pointer to the image to warp
@@ -226,38 +125,31 @@ double interp_pixel(image_basic *baseImage, double x, double y) {
  * @param dominantAxis Determines which axis (x or y) to apply the warping to.
  * @param warpedImage pointer to the image to write to
  */
-void warp_image(image_basic *baseImage, int sizex, int sizey, double aterms[], double bterms[], double cterms[], int dominantAxis, image_basic *warpedImage) {
-	//we have to retain the integrity of the old image, so we have to make a new, unwarped version.
-	//image_basic warpedImage(sizex,sizey,1);
+void warpImage(FImage *_base, int sizex, int sizey, double aterms[], double bterms[], double cterms[], int dominant_axis, FImage *_warped) {
+	printf("Begin Warping!\n");
 	int pixelx = 0;
 	int pixely = 0;
 
 	double newx = 0;
 	double newy = 0;
 	double newz = 0;
-	int pixelvalue = 0;
+	double pixelvalue = 0;
 
-	if ( dominantAxis == 1 ) {
+	if ( dominant_axis == 1 ) {
 		for ( pixely = 0; pixely < sizey; pixely++ ) {
 			int pixely2 = pixely * pixely;
 			int pixely3 = pixely2 * pixely;
 			for ( pixelx = 0; pixelx < sizex; pixelx++ ) {
-				//math.pow() is slightly slower than explicit multiplication.  Since this will be happening thousands of times, 
-				//this IS slightly faster.  Please note that since
-				//Nathan's edit (saving the value is even faster...moved calculation up to reduce redundancy by a factor of 1000.)
 
 				newx = pixelx + aterms[ 0 ] + aterms[ 1 ] * pixely + aterms[ 2 ] * pixely2 + aterms[ 3 ] * pixely3;
 				newy = bterms[ 0 ] + bterms[ 1 ] * pixely + bterms[ 2 ] * pixely2 + bterms[ 3 ] * pixely3;
 				newz = cterms[ 0 ] + cterms[ 1 ] * pixely + cterms[ 2 ] * pixely2 + cterms[ 3 ] * pixely3;
-				if ( newx < 0 || newx >= baseImage->width || newy < 0 || newy >= baseImage->height ) {
-					warpedImage->set( pixelx, pixely, -1 );
+				if (newx < 0 || newx >= _base->width || newy < 0 || newy >= _base->height) {
+					_warped->set( pixelx, pixely, -1 );
 				}
 				else {
-					pixelvalue = rnd( interp_pixel( baseImage, (float) newx, (float) newy ) + newz );     //where the new value is actually computed.
-					//note,above, the cheap-ass implementation of rounding
-					//ceil(newz);
-					//pixelvalue+= newz;
-					warpedImage->set( pixelx, pixely, pixelvalue );
+					pixelvalue = _base->interpPixel(newx, newy) + newz;
+					_warped->set( pixelx, pixely, pixelvalue );
 				}
 			}
 		}
@@ -272,12 +164,12 @@ void warp_image(image_basic *baseImage, int sizex, int sizey, double aterms[], d
 				// Nathan's edit. Again. see above. Reversed order of for loops 5/23/2011
 				newx = aterms[ 0 ] + ( aterms[ 1 ] + 1 ) * pixelx + aterms[ 2 ] * pixelx2 + aterms[ 3 ] * pixelx3;
 				newy = pixely + bterms[ 0 ] + ( bterms[ 1 ] - 1 ) * pixelx + bterms[ 2 ] * pixelx2 + bterms[ 3 ] * pixelx3;
-				if ( newx < 0 || newx >= baseImage->width || newy < 0 || newy >= baseImage->height ) {
-					warpedImage->set( pixelx, pixely, -1 );
+				if (newx < 0 || newx >= _base->width || newy < 0 || newy >= _base->height) {
+					_warped->set( pixelx, pixely, -1 );
 				}
 				else {
-					pixelvalue = rnd( interp_pixel( baseImage, (float) newx, (float) newy ) );     //where the new value is actually computed.
-					warpedImage->set( pixelx, pixely, pixelvalue );
+					pixelvalue = _base->interpPixel( newx, newy );     //where the new value is actually computed.
+					_warped->set( pixelx, pixely, pixelvalue );
 				}
 			}
 		}
@@ -289,15 +181,15 @@ void warp_image(image_basic *baseImage, int sizex, int sizey, double aterms[], d
  * @param baseImage pointer to the image
  * @param image pointer to two dimensional array
  */
-void val2Array(image_basic *baseImage, int **image) {
-	int sizex = baseImage->width;
-	int sizey = baseImage->height;
+void val2Array(FImage *_base, float **image) {
+	int sizex = _base->width;
+	int sizey = _base->height;
 	int pixelx = 0;
 	int pixely = 0;
 
 	for ( pixely = 0; pixely < sizey; pixely++ ) {
 		for ( pixelx = 0; pixelx < sizex; pixelx++ ) {
-			image[ pixelx ][ pixely ] = (int) interp_pixel( baseImage, (float) pixelx, (float) pixely );
+			image[pixelx][pixely] = _base->interpPixel((float)pixelx, (float)pixely);
 			//note: since pixelx and pixely are integers, I have no idea why Brian is using interp_pixel for this.
 		}
 	}
@@ -319,15 +211,15 @@ int compute1D(int sizex, int x, int y) {
  * @param baseImage
  * @param image
  */
-void val21DArray(image_basic *baseImage, int image[]) {
-	int sizex = baseImage->width;
-	int sizey = baseImage->height;
+void val21DArray(FImage *_base, float image[]) {
+	int sizex = _base->width;
+	int sizey = _base->height;
 	int pixelx = 0;
 	int pixely = 0;
 
 	for ( pixely = 0; pixely < sizey; pixely++ ) {
 		for ( pixelx = 0; pixelx < sizex; pixelx++ ) {
-			image[ compute1D( sizex, pixelx, pixely ) ] = baseImage->get( pixelx, pixely );
+			image[compute1D(sizex, pixelx, pixely)] = _base->get(pixelx, pixely);
 		}
 	}
 }
@@ -352,21 +244,21 @@ void nearestneighbor(double x, double y, double* newx, double* newy) {
  * @param base
  * @param factor
  */
-void resample(image_basic *resamp, image_basic base, int factor) {
-	unsigned int rx_size = base.width / factor;
-	unsigned int ry_size = base.height / factor;
+void resample(FImage *resamp, FImage *base, int factor) {
+	unsigned int rx_size = base->width / factor;
+	unsigned int ry_size = base->height / factor;
 	//resamp->set_color_mode(base.get_color_mode());
-	resamp->initialize( rx_size, ry_size, base.get_color_mode() );
+	resamp->initialize(rx_size, ry_size, base->metadata);
 	//int cm = base.get_color_mode();
 	//image_basic *resamp(rx_size,ry_size,base.get_color_mode()); 
 
 	double inv_area = 1.0 / ( factor * factor );
 	for ( unsigned int ry = 0; ry < ry_size; ++ry ) {
 		for ( unsigned int rx = 0; rx < rx_size; ++rx ) {
-			int pixel_value = 0;
+			double pixel_value = 0;
 			for ( unsigned int by = ry * factor; by < ( ry + 1 ) * factor; ++by )
 				for ( unsigned int bx = rx * factor; bx < ( rx + 1 ) * factor; ++bx )
-					pixel_value += base.fast_get( bx, by );
+					pixel_value += base->fastGet(bx, by);
 			resamp->set( rx, ry, rnd( pixel_value * inv_area ) );
 		}
 	}
@@ -388,19 +280,6 @@ argo::argo()	{
 	simplex_growth = 1.5, simplex_contract = 0.5, simplex_reflect = 0.9, simplex_halt = 1e-11;
 	simplex_iterations = 5000;
 
-	rsliver_width, rsliver_height, rbase_width, rbase_height, numblocks;
-	a2_max, a3_max, b2_max, b3_max;
-	a1_step, a2_step, a3_step, b1_step, b2_step, b3_step;
-	totaldriftA, totaldriftB;
-
-	Asliverdrift, Bsliverdrift;
-	Adiffletpoints, Bdiffletpoints;
-	Apoints, Bpoints;
-	num_sliver_blocks;
-	sliver_block_width;
-	dyn_diffs_size;
-	A_combos_size, B_combos_size;
-
 	results.bestdiff = 1e37;
 	results.count = 0;
 	results.iterations_ignored = 0;
@@ -418,6 +297,18 @@ argo::~argo()	{
 	}
 	if (combos.B_combos)	{
 		delete[] combos.B_combos;
+	}
+	if (images_store.orig_base)	{
+		delete images_store.orig_base;
+	}
+	if (images_store.resamp_base)	{
+		delete images_store.resamp_base;
+	}
+	if (images_store.orig_sliver)	{
+		delete images_store.orig_sliver;
+	}
+	if (images_store.resamp_sliver)	{
+		delete images_store.resamp_sliver;
 	}
 }
 
@@ -455,8 +346,8 @@ void argo::logCalculatedParams()	{
 	printf("b3 Max : %f, b3 Step Size : %f, b3 Steps : %f\n", b3_max, b3_step, b3_max / b3_step);
 
 	printf("A0 Max : %d, B0 Max %d\n", A0_max, B0_max);
-	printf("total drifts : \t %ld, %ld\n", totaldriftA, totaldriftB);
-	printf("height removed : \t %ld\n", (totaldriftB + 2 * Bsliverdrift + B0_max));
+	printf("total drifts : \t %ld, %ld\n", A_total_drift, B_total_drift);
+	printf("height removed : \t %ld\n", (B_total_drift + 2 * B_sliver_drift + B0_max));
 	printf("\n");
 }
 
@@ -549,18 +440,20 @@ void argo::logProgramInformation()	{
 #endif
 
 void argo::readImages()	{
-
 	// Read image files and resample based upon provided precision.
-	images_store.orig_base.file_read_tiff(base_name);
-	images_store.orig_sliver.file_read_tiff(sliver_name);
-	resample(&images_store.resamp_base, images_store.orig_base, precision);
-	resample(&images_store.resamp_sliver, images_store.orig_sliver, precision);
+	images_store.orig_base = new FImage(base_name);
+	images_store.orig_sliver = new FImage(sliver_name);
+	images_store.resamp_base = new FImage(images_store.orig_base->metadata);
+	images_store.resamp_sliver = new FImage(images_store.orig_sliver->metadata);
+
+	resample(images_store.resamp_base, images_store.orig_base, precision);
+	resample(images_store.resamp_sliver, images_store.orig_sliver, precision);
 
 	// Set dimension parameters.
-	rbase_width = images_store.resamp_base.width;
-	rbase_height = images_store.resamp_base.height;
-	rsliver_width = images_store.resamp_sliver.width;
-	rsliver_height = images_store.resamp_sliver.height;
+	rbase_width = images_store.resamp_base->width;
+	rbase_height = images_store.resamp_base->height;
+	rsliver_width = images_store.resamp_sliver->width;
+	rsliver_height = images_store.resamp_sliver->height;
 }
 
 void argo::readInputParams(int argc, char *argv[])	{
@@ -678,11 +571,11 @@ void argo::initCalculatedParams()	{
 
 	// This set of variables record how many pixels of drift in either axis that will be encountered by the program.
 	// Note that the factor of 1.38 is hard-coded for a2_multiplier = 1/3, a3_multiplier = 1/9
-	totaldriftA = A0_max + ( int ) ceil( 1.38 * a1_max * rbase_height );
-	totaldriftB = B0_max + ( int ) ceil( 1.38 * b1_max * rbase_height );
+	A_total_drift = A0_max + ( int ) ceil( 1.38 * a1_max * rbase_height );
+	B_total_drift = B0_max + ( int ) ceil( 1.38 * b1_max * rbase_height );
 
 	// Compute maximum slope.
-	double max_slope, maxslopeA, maxslopeB = 0;
+	double max_slope, maxslopeA, maxslopeB;
 	maxslopeA = a1_max +
 			a2_max * rbase_height +
 			0.5 * rbase_height * rbase_height * a3_max;
@@ -699,19 +592,19 @@ void argo::initCalculatedParams()	{
 
 	numblocks = 0; 
 
-	Asliverdrift = ( int ) ( maxslopeA * rsliver_width );
-	Bsliverdrift = ( int ) ( maxslopeB * rsliver_width );
+	A_sliver_drift = ( int ) ( maxslopeA * rsliver_width );
+	B_sliver_drift = ( int ) ( maxslopeB * rsliver_width );
 
-	Adiffletpoints = ( totaldriftA + Asliverdrift ) * 2 + 1;  //get factor of two correct here.
-	Bdiffletpoints = ( totaldriftB + Bsliverdrift ) * 2 + 1;
+	A_difflet_points = ( A_total_drift + A_sliver_drift ) * 2 + 1;  //get factor of two correct here.
+	B_difflet_points = ( B_total_drift + B_sliver_drift ) * 2 + 1;
 	
-	numblocks = ( rbase_height - totaldriftB - 2 * Bsliverdrift - B0_max ) / blocksize;
+	numblocks = ( rbase_height - B_total_drift - 2 * B_sliver_drift - B0_max ) / blocksize;
 
-	Apoints = totaldriftA * 2 + 1;
-	Bpoints = totaldriftB * 2 + 1;
+	A_points = A_total_drift * 2 + 1;
+	B_points = B_total_drift * 2 + 1;
 	num_sliver_blocks = rsliver_width / blocksize;
 	sliver_block_width = rsliver_width / num_sliver_blocks;
-	dyn_diffs_size = numblocks * Apoints * Bpoints;
+	dyn_diffs_size = numblocks * A_points * B_points;
 }
 
 /**
@@ -767,29 +660,29 @@ void argo::initBetaGamma()	{
 
 
 	int smin = rbase_width / 2 - rsliver_width / 2;
-	long long partial_sum1;
-	long long partial_sum2;
-	long long partial_sum3;
-	long long diff;
+	double partial_sum1;
+	double partial_sum2;
+	double partial_sum3;
+	double diff;
 
 	// Figure out maximum sliver drift, make difflets larger by that much.  (Apoints+Asliverpoints)
-	beta_gamma_store.difflets = new gamma_values[numblocks * Adiffletpoints *
-									Bdiffletpoints * num_sliver_blocks ];
+	beta_gamma_store.difflets = new gamma_values[numblocks * A_difflet_points *
+									B_difflet_points * num_sliver_blocks ];
 
 	gamma_values difflet;
 	for ( long int sb = 0; sb < num_sliver_blocks; ++sb ) {
 		long int sliver_block_x = sb * sliver_block_width;
-		for ( long int j = 0; j <= 2 * ( totaldriftB + Bsliverdrift ); ++j ) {
-			for ( long int i = 0; i <= 2 * ( totaldriftA + Asliverdrift ); ++i ) {
-				long int x_initial = smin - totaldriftA - Asliverdrift + i;
+		for ( long int j = 0; j <= 2 * ( B_total_drift + B_sliver_drift ); ++j ) {
+			for ( long int i = 0; i <= 2 * ( A_total_drift + A_sliver_drift ); ++i ) {
+				long int x_initial = smin - A_total_drift - A_sliver_drift + i;
 				x_initial += sliver_block_x;
 				for ( long int b = 0; b < numblocks; b++ ) {
 					partial_sum1 = 0;
 					partial_sum2 = 0;
 					partial_sum3 = 0;
-					for ( long int y = B0_max - totaldriftB + j + b * blocksize,
-							ys = B0_max + Bsliverdrift + b * blocksize;
-							ys < B0_max + ( b + 1 ) * blocksize + Bsliverdrift;
+					for ( long int y = B0_max - B_total_drift + j + b * blocksize,
+							ys = B0_max + B_sliver_drift + b * blocksize;
+							ys < B0_max + ( b + 1 ) * blocksize + B_sliver_drift;
 							++y, ++ys ) {
 						// Skip all negative elements.
 						if ( y < 0 ) {
@@ -798,7 +691,7 @@ void argo::initBetaGamma()	{
 						for ( long int x = x_initial, xs = sliver_block_x;
 								xs < sliver_block_x + sliver_block_width;
 								++x, ++xs ) {
-							diff = -images_store.resamp_sliver.fast_get( xs, ys ) + images_store.resamp_base.fast_get( x, y ) - 1;
+							diff = -images_store.resamp_sliver->fastGet(xs, ys) + images_store.resamp_base->fastGet(x, y) - 1;
 							partial_sum1 += diff * diff;
 							++diff;
 							partial_sum2 += diff * diff;
@@ -819,8 +712,8 @@ void argo::initBetaGamma()	{
 					difflet.G1 = g1;
 					difflet.G2 = g2;
 
-					beta_gamma_store.difflets[b + i * numblocks + j * numblocks * Adiffletpoints +
-					          sb * numblocks * Adiffletpoints * Bdiffletpoints ] = difflet;
+					beta_gamma_store.difflets[b + i * numblocks + j * numblocks * A_difflet_points +
+					          sb * numblocks * A_difflet_points * B_difflet_points ] = difflet;
 				} //end for b
 			} //end for i
 		} //end for j
@@ -836,9 +729,9 @@ void argo::performGridSearch(bool verbose)	{
 	double * yb5_arr = new double[numblocks];
 	double * yb6_arr = new double[numblocks];
 	int mult1, mult2, mult3;
-	mult3 = numblocks * Adiffletpoints * Bdiffletpoints;
-	mult2 = numblocks * Adiffletpoints;
-	mult1 = numblocks * Apoints;
+	mult3 = numblocks * A_difflet_points * B_difflet_points;
+	mult2 = numblocks * A_difflet_points;
+	mult1 = numblocks * A_points;
 
 	for (int i = 0; i < numblocks; ++i) {
 		yb_arr[i] = i * blocksize + B0_max; //+ Bsliverdrift;
@@ -850,26 +743,22 @@ void argo::performGridSearch(bool verbose)	{
 	}
 
 	//TO DO for tomorrow: think about how to do initial and final B1 sensibly and symmetrically
-	//Incorporate actual sliver_width into calculation, no hard-wiring to 32.
 	//Refill DIFFS
 	long int Aindex_f = 0, Bindex_f = 0;
 	for (long int Bindex_i = 0; Bindex_i < B_combos_size - 1; Bindex_i = Bindex_f) {
 		double B1_i = combos.B_combos[Bindex_i].P1;
-		double B1_f = B1_i + .01;	//(1.0/32);
+		double B1_f = B1_i + .01;
 		//search ahead for index Bi_f
 		for (Bindex_f = Bindex_i + 1; (combos.B_combos[Bindex_f].P1 < B1_f) && (Bindex_f < B_combos_size); ++Bindex_f);
 
 		for (long int Aindex_i = 0; Aindex_i < A_combos_size - 1; Aindex_i = Aindex_f) {
 			double A1_i = combos.A_combos[Aindex_i].P1;
-			double A1_f = A1_i + .01;		//(1.0/32);
+			double A1_f = A1_i + .01;
 			//search ahead for index Ai_f
 			for (Aindex_f = Aindex_i + 1; (combos.A_combos[Aindex_f].P1 < A1_f) && (Aindex_f < A_combos_size); ++Aindex_f);
 			
-			// Empty out array of beta values.
-			if (beta_gamma_store.dynamic_diffs != 0)	{
-				delete[] beta_gamma_store.dynamic_diffs;
-			}
-			beta_gamma_store.dynamic_diffs = new beta_values[dyn_diffs_size];
+			// Empty out array of dynamic diffs.
+			memset(beta_gamma_store.dynamic_diffs, 0, dyn_diffs_size * sizeof(beta_values));
 
 			// Populate array with new beta values.
 			long int diffs_address;
@@ -877,7 +766,7 @@ void argo::performGridSearch(bool verbose)	{
 			int Xc = -sliver_block_width;
 			int totX;
 			int totY;
-			int blocktimesApoints = Apoints * numblocks;
+			int blocktimesApoints = A_points * numblocks;
 			long A0_B0_adj_inc = numblocks;  //A0increase is now assumed to be 1.
 			long MaxA0_times_numblocks = A0_max * numblocks;
 			long B0_adj_min = -B0_max * blocktimesApoints;
@@ -892,15 +781,15 @@ void argo::performGridSearch(bool verbose)	{
 				Xc += sliver_block_width;
 				int Xc2 = Xc * Xc;
 				int doubleXc = 2 * Xc;
-				int sx = Asliverdrift - (int)(Xc * A1_i);  //which A1 do I use?  first?  last?  average?
-				int sy = Bsliverdrift - (int)(Xc * B1_i);
+				int sx = A_sliver_drift - (int)(Xc * A1_i);  //which A1 do I use?  first?  last?  average?
+				int sy = B_sliver_drift - (int)(Xc * B1_i);
 				//printf("%f, %d, %d, %d\n",A1_i,sb,sx,sy);
 				int YPart = -mult1;
-				for (int dy = 0; dy < Bpoints; ++dy) {
+				for (int dy = 0; dy < B_points; ++dy) {
 					totY = ( dy + sy ) * mult2;
 					YPart += mult1;
 					int XPart = -numblocks;
-					for (int dx = 0; dx < Apoints; ++dx) {
+					for (int dx = 0; dx < A_points; ++dx) {
 						totX = (dx + sx) * numblocks;
 						XPart += (int)numblocks;
 						for (int b = 0; b < numblocks; ++b) {  //partially unroll this loop?
@@ -956,8 +845,8 @@ void argo::performGridSearch(bool verbose)	{
 							for (int i = 0; i<numblocks; i++) {
 								double beta1, double_beta2, beta3, beta4, beta5;
 
-								long xpos = (long)(A1*yb_arr[i] + A2*yb2_arr[i] + A3*yb3_arr[i] + totaldriftA);
-								long ypos = (long)(B1*yb_arr[i] + B2*yb2_arr[i] + B3*yb3_arr[i] + totaldriftB);
+								long xpos = (long)(A1*yb_arr[i] + A2*yb2_arr[i] + A3*yb3_arr[i] + A_total_drift);
+								long ypos = (long)(B1*yb_arr[i] + B2*yb2_arr[i] + B3*yb3_arr[i] + B_total_drift);
 
 								int index = i + xpos*numblocks + ypos*blocktimesApoints + A0_B0_adj;
 
@@ -997,8 +886,8 @@ void argo::performGridSearch(bool verbose)	{
 							cs.lock();
 							double function = 0;
 							for (int i = 0; i<numblocks; i++){
-								long xpos = (long)(A1*yb_arr[i] + A2*yb2_arr[i] + A3*yb3_arr[i] + totaldriftA);
-								long ypos = (long)(B1*yb_arr[i] + B2*yb2_arr[i] + B3*yb3_arr[i] + totaldriftB);
+								long xpos = (long)(A1*yb_arr[i] + A2*yb2_arr[i] + A3*yb3_arr[i] + A_total_drift);
+								long ypos = (long)(B1*yb_arr[i] + B2*yb2_arr[i] + B3*yb3_arr[i] + B_total_drift);
 								//int index = diffs_indices[i] + A0_B0_adj;//*numBytes
 								int index = i + xpos*numblocks + ypos*blocktimesApoints + A0_B0_adj;
 								//int index = diffs_indices[i] + A0_B0_adj;
@@ -1087,18 +976,18 @@ void argo::performSimplexRoutine()	{
 	
 	precisionArr[0] = 0.1;
 	precisionArr[1] = 0.1;
-	precisionArr[2] = 0.1 / images_store.orig_base.height;
-	precisionArr[3] = 0.1 / images_store.orig_base.height;
-	precisionArr[4] = 0.1 / pow(images_store.orig_base.height, 2.0);
-	precisionArr[5] = 0.1 / pow(images_store.orig_base.height, 2.0);
-	precisionArr[6] = 0.1 / pow(images_store.orig_base.height, 3.0);
-	precisionArr[7] = 0.1 / pow(images_store.orig_base.height, 3.0);
+	precisionArr[2] = 0.1 / images_store.orig_base->height;
+	precisionArr[3] = 0.1 / images_store.orig_base->height;
+	precisionArr[4] = 0.1 / pow(images_store.orig_base->height, 2.0);
+	precisionArr[5] = 0.1 / pow(images_store.orig_base->height, 2.0);
+	precisionArr[6] = 0.1 / pow(images_store.orig_base->height, 3.0);
+	precisionArr[7] = 0.1 / pow(images_store.orig_base->height, 3.0);
 	precisionArr[8] = 0.1;
-	precisionArr[9] = 0.1 / images_store.orig_base.height;
-	precisionArr[10] = 0.1 / pow(images_store.orig_base.height, 2.0);
-	precisionArr[11] = 0.1 / pow(images_store.orig_base.height, 3.0);
+	precisionArr[9] = 0.1 / images_store.orig_base->height;
+	precisionArr[10] = 0.1 / pow(images_store.orig_base->height, 2.0);
+	precisionArr[11] = 0.1 / pow(images_store.orig_base->height, 3.0);
 
-	simplex(&images_store.orig_base, &images_store.orig_sliver, grid_best, simplex_best, 12, precisionArr, simplex_reflect,
+	simplex(images_store.orig_base, images_store.orig_sliver, grid_best, simplex_best, 12, precisionArr, simplex_reflect,
 		simplex_contract, simplex_growth, simplex_halt,
 		simplex_iterations);
 }
@@ -1109,13 +998,15 @@ void argo::performImageCorrection()	{
 	double bterms[4] = { simplex_best[1], simplex_best[3], simplex_best[5], simplex_best[7] };
 	double cterms[4] = { simplex_best[8], simplex_best[9], simplex_best[10], simplex_best[11] };
 
-	image_basic final(images_store.orig_base.width, images_store.orig_base.height, images_store.orig_base.get_color_mode());
-	warp_image(&images_store.orig_base, images_store.orig_base.width, images_store.orig_base.height, aterms, bterms, cterms, 1, &final);
+
+	FImage* final = new FImage(images_store.orig_base->width, images_store.orig_base->height, images_store.orig_base->metadata);
+	warpImage(images_store.orig_base, images_store.orig_base->width, images_store.orig_base->height, aterms, bterms, cterms, 1, final);
+	printf("Image Warped!\n");
 
 	std::string finalstring = base_name;
 	std::basic_string < char > finalmarkerstring("_corrected");
 	finalstring.insert(finalstring.rfind("."), finalmarkerstring);
-	final.file_write_tiff(finalstring);
+	final->writeImage(finalstring);
 }
 
 void argo::correctImages()	{
@@ -1242,10 +1133,12 @@ void argo::correctImages(int argc, char* argv[], bool verbose)	{
  * Main method for our program.
  */
 int main(int argc, char *argv[]) {
+	FreeImage_Initialise();
 
 	argo* program = new argo();
 	program->correctImages(argc, argv, true);
 	delete program;
 
+	FreeImage_DeInitialise();
 	getchar();
 }
