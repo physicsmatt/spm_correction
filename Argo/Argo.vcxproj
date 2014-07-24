@@ -20,6 +20,7 @@
   </ItemGroup>
   <ItemGroup>
     <ClCompile Include="FImage.cpp" />
+    <ClCompile Include="main.cpp" />
     <ClCompile Include="object_argo.cpp" />
     <ClCompile Include="simplex.cpp" />
   </ItemGroup>
@@ -27,7 +28,16 @@
     <ClInclude Include="argo.h" />
     <ClInclude Include="FreeImage.h" />
     <ClInclude Include="FImage.h" />
+    <ClInclude Include="Kernels.h" />
+    <ClInclude Include="precision.h" />
+    <ClInclude Include="resource.h" />
     <ClInclude Include="simplex.h" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="kernels.cl" />
+    <None Include="kernels_d2.cl" />
+    <None Include="kernels_double.cl" />
+    <None Include="kernels_inline.cl" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{B69CB6F1-B196-489E-9D2D-015F2BFB307A}</ProjectGuid>
@@ -81,19 +91,27 @@
     <RunCodeAnalysis>true</RunCodeAnalysis>
     <OutDir>$(SolutionDir)\bin\</OutDir>
     <IntDir>$(SolutionDir)\temp\</IntDir>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
     <RunCodeAnalysis>true</RunCodeAnalysis>
     <OutDir>$(SolutionDir)\bin\</OutDir>
     <IntDir>$(SolutionDir)\temp\</IntDir>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
     <OutDir>$(SolutionDir)\bin\</OutDir>
     <IntDir>$(SolutionDir)\temp\</IntDir>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <LibraryPath>$(VC_LibraryPath_x86);$(WindowsSDK_LibraryPath_x86);</LibraryPath>
   </PropertyGroup>
   <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
     <OutDir>$(SolutionDir)\bin\</OutDir>
     <IntDir>$(SolutionDir)\temp\</IntDir>
+    <IncludePath>$(VC_IncludePath);$(WindowsSDK_IncludePath);</IncludePath>
+    <LibraryPath>$(VC_LibraryPath_x64);$(WindowsSDK_LibraryPath_x64);</LibraryPath>
   </PropertyGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|Win32'">
     <ClCompile>
@@ -101,7 +119,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <EnablePREfast>true</EnablePREfast>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;$(AMDAPPSDKROOT)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>
       </EnableEnhancedInstructionSet>
       <SuppressStartupBanner>false</SuppressStartupBanner>
@@ -111,16 +129,18 @@
       <FloatingPointExceptions>true</FloatingPointExceptions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <PreprocessorDefinitions>_MBCS;FREEIMAGE_LIB ;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <FloatingPointModel>Precise</FloatingPointModel>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <Profile>true</Profile>
-      <AdditionalLibraryDirectories>$(SolutionDir)\..\tbb\lib\ia32\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <Version>1.2</Version>
+      <AdditionalLibraryDirectories>$(AMDAPPSDKROOT)\lib\x86;$(SolutionDir)\..\tbb\lib\ia32\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <Version>1.3</Version>
       <SuppressStartupBanner>false</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
       <LinkStatus>true</LinkStatus>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimaged.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;OpenCL.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimaged.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Inputs>$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.dll;$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.pdb</Inputs>
@@ -140,7 +160,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <EnablePREfast>true</EnablePREfast>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;$(AMDAPPSDKROOT)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>
       </EnableEnhancedInstructionSet>
       <SuppressStartupBanner>false</SuppressStartupBanner>
@@ -150,16 +170,18 @@
       <FloatingPointExceptions>true</FloatingPointExceptions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
       <PreprocessorDefinitions>_MBCS;FREEIMAGE_LIB ;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
+      <FloatingPointModel>Precise</FloatingPointModel>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <Profile>true</Profile>
-      <AdditionalLibraryDirectories>$(SolutionDir)\..\tbb\lib\intel64\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <Version>1.2</Version>
+      <AdditionalLibraryDirectories>$(AMDAPPSDKROOT)\lib\x86_64;$(SolutionDir)\..\tbb\lib\intel64\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <Version>1.3</Version>
       <SuppressStartupBanner>false</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
       <LinkStatus>true</LinkStatus>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimaged.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;OpenCL.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimaged.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Inputs>$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.dll;$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.pdb</Inputs>
@@ -181,7 +203,7 @@
       </FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;$(AMDAPPSDKROOT)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SuppressStartupBanner>false</SuppressStartupBanner>
       <MultiProcessorCompilation>
       </MultiProcessorCompilation>
@@ -189,18 +211,21 @@
       <FloatingPointExceptions>true</FloatingPointExceptions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PreprocessorDefinitions>_MBCS;FREEIMAGE_LIB ;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <FloatingPointModel>Strict</FloatingPointModel>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <Profile>true</Profile>
-      <AdditionalLibraryDirectories>$(SolutionDir)\..\tbb\lib\ia32\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <Version>1.2</Version>
+      <Profile>
+      </Profile>
+      <AdditionalLibraryDirectories>$(AMDAPPSDKROOT)\lib\x86;$(SolutionDir)\..\tbb\lib\ia32\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <Version>1.3</Version>
       <SuppressStartupBanner>false</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
       <LinkStatus>true</LinkStatus>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimage.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;OpenCL.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimage.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Outputs>Copying required Intel Thread Building Blocks DLL's.</Outputs>
@@ -222,7 +247,7 @@
       </FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;$(AMDAPPSDKROOT)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <MultiProcessorCompilation>
       </MultiProcessorCompilation>
@@ -230,18 +255,21 @@
       <FloatingPointExceptions>true</FloatingPointExceptions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
       <PreprocessorDefinitions>_MBCS;FREEIMAGE_LIB ;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
+      <FloatingPointModel>Strict</FloatingPointModel>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <EnableCOMDATFolding>true</EnableCOMDATFolding>
       <OptimizeReferences>true</OptimizeReferences>
-      <Profile>true</Profile>
-      <AdditionalLibraryDirectories>$(SolutionDir)\..\tbb\lib\intel64\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
-      <Version>1.2</Version>
+      <Profile>
+      </Profile>
+      <AdditionalLibraryDirectories>$(AMDAPPSDKROOT)\lib\x86_64;$(SolutionDir)\..\tbb\lib\intel64\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <Version>1.3</Version>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
-      <LinkStatus>true</LinkStatus>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimage.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <LinkStatus>false</LinkStatus>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;OpenCL.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimage.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Command>xcopy /y "$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb.*" "$(TargetDir)"</Command>
