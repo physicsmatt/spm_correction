@@ -1,7 +1,9 @@
 #ifndef _ARGO_H_
 #define _ARGO_H_
-#include <iostream>
+#include <string>
 #include "FImage.h"
+
+#define VERSION "1.3"
 
 /**
  * Struct for holding the 6 Beta values used to evaluate the C coefficients.
@@ -82,11 +84,15 @@ class argo {
 		unsigned long int dyn_diffs_size;
 		long int A_combos_size, B_combos_size;
 
+		// Range of the data that we have. abs(Minimum data point - Maximum data point)
+		double data_range;
+
 		struct {
 				FImage * orig_sliver;
 				FImage * orig_base;
 				FImage * resamp_sliver;
 				FImage * resamp_base;
+				bool flipped;
 		} images_store;
 
 		struct {
@@ -120,6 +126,9 @@ class argo {
 		void correctImages ( int argc, char *argv[], bool verbose );
 
 	private:
+		int interp_type = F_BSPLINE;
+
+
 		void logInputParams ();
 		void logCalculatedParams ();
 		void logComboInfo ();
@@ -131,7 +140,7 @@ class argo {
 
 		void readInputParams ( int argc, char *argv[] );
 		void initCalculatedParams ();
-		void readImages ();
+		void readImages ( bool verbose );
 		void initCombos ();
 		void initBetaGamma ();
 		void performGridSearch ( bool verbose );
