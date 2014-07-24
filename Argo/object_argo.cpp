@@ -1,51 +1,16 @@
-/*********************************************************************
- *Image Master procedural image registration and stabilization routine*
- *Coded by: Brian Salmons & Dr. Matthew Trawick                       *
- **********************************************************************
- *Dr. Matthew Trawick                                                 *
- *University of Richmond                                              *
- **********************************************************************
- */
-
-/** Version 1.3
- *
- *Known Issues:
- *-Sliverdrift is SIGNIFICANTLY slower.  Need to try to speed this up.
- *
- *-Significant speed improvements for non-sliverdrift version.
- *-Fixed annoying division bug resulting from changes to the way areas are calculated
- *-Initial simplex values are now no longer output... they aren't needed.
- *-Significant changes to the way that sliver drift computations occur.
- *-Printouts from simplex supressed.
- */
-
 #define _CRT_SECURE_NO_WARNINGS
-#include <math.h>
-#include <time.h>
-#include <stdio.h>
-#include <valarray>
+
 #include <algorithm>
+#include <time.h>
+#include <iostream>
 #include <tbb\parallel_for.h>
 #include <tbb\critical_section.h>
-#include "argo.h"
 #include "Eigen\Eigen"
 #include "simplex.h"
+#include "argo.h"
 
 //#define SANITYCHECKS
-#define VERSION "1.3"
-#define CODEFOLD
 
-/**
- * Basically just return floor() for negatives and ceil() for positives. Gosh why such a crappy implementation?
- * @param a
- * @return
- */
-int rnd ( double a ) {
-	if ( a >= 0 )
-		return ( int( a + 0.5 ) );
-	else
-		return ( int( a - 0.5 ) );
-}
 
 /**
  * Returns < for param_combo based upon comparisons of P1, P2, and P3 with priorities in that order.
@@ -111,157 +76,6 @@ bool operator>= ( const param_combo& a, const param_combo& b ) {
 		return ( a.P3 >= b.P3 );
 }
 
-/**
- * Based upon given parameter values, the base image is warped.
- *
- * @param baseImage pointer to the image to warp
- * @param sizex width of base image
- * @param sizey height of base image
- * @param aterms A parameter values
- * @param bterms B parameter values
- * @param cterms C parameter values
- * @param dominantAxis Determines which axis (x or y) to apply the warping to.
- * @param warpedImage pointer to the image to write to
- */
-void warpImage ( FImage *_base, int sizex, int sizey, double aterms[], double bterms[], double cterms[], int dominant_axis, FImage *_warped ) {
-	printf( "Begin Warping!\n" );
-	int pixelx = 0;
-	int pixely = 0;
-
-	double newx = 0;
-	double newy = 0;
-	double newz = 0;
-	double pixelvalue = 0;
-
-	if ( dominant_axis == 1 ) {
-		for ( pixely = 0; pixely < sizey; pixely++ ) {
-			int pixely2 = pixely * pixely;
-			int pixely3 = pixely2 * pixely;
-			for ( pixelx = 0; pixelx < sizex; pixelx++ ) {
-
-				newx = pixelx + aterms[ 0 ] + aterms[ 1 ] * pixely + aterms[ 2 ] * pixely2 + aterms[ 3 ] * pixely3;
-				newy = bterms[ 0 ] + bterms[ 1 ] * pixely + bterms[ 2 ] * pixely2 + bterms[ 3 ] * pixely3;
-				newz = cterms[ 0 ] + cterms[ 1 ] * pixely + cterms[ 2 ] * pixely2 + cterms[ 3 ] * pixely3;
-				if ( newx < 0 || newx >= _base->width || newy < 0 || newy >= _base->height ) {
-					_warped->set( pixelx, pixely, -1 );
-				}
-				else {
-					pixelvalue = _base->interpPixel( newx, newy ) + newz;
-					_warped->set( pixelx, pixely, pixelvalue );
-				}
-			}
-		}
-	}
-	else {
-		for ( pixelx = 0; pixelx < sizex; pixelx++ ) {
-			int pixelx2 = pixelx * pixelx;
-			int pixelx3 = pixelx2 * pixelx;
-			for ( pixely = 0; pixely < sizey; pixely++ ) {
-				// math.pow() is slightly slower than explicit multiplication.  Since this will be happening thousands of times
-				// this IS slightly faster.  Please note that since
-				// Nathan's edit. Again. see above. Reversed order of for loops 5/23/2011
-				newx = aterms[ 0 ] + ( aterms[ 1 ] + 1 ) * pixelx + aterms[ 2 ] * pixelx2 + aterms[ 3 ] * pixelx3;
-				newy = pixely + bterms[ 0 ] + ( bterms[ 1 ] - 1 ) * pixelx + bterms[ 2 ] * pixelx2 + bterms[ 3 ] * pixelx3;
-				if ( newx < 0 || newx >= _base->width || newy < 0 || newy >= _base->height ) {
-					_warped->set( pixelx, pixely, -1 );
-				}
-				else {
-					pixelvalue = _base->interpPixel( newx, newy );     //where the new value is actually computed.
-					_warped->set( pixelx, pixely, pixelvalue );
-				}
-			}
-		}
-	}
-}
-
-/**
- * This method makes an array of pixelvalues, rather than the image_basic inhouse valarray usage, which, while fast, is also highly confusing.
- * @param baseImage pointer to the image
- * @param image pointer to two dimensional array
- */
-void val2Array ( FImage *_base, float **image ) {
-	int sizex = _base->width;
-	int sizey = _base->height;
-	int pixelx = 0;
-	int pixely = 0;
-
-	for ( pixely = 0; pixely < sizey; pixely++ ) {
-		for ( pixelx = 0; pixelx < sizex; pixelx++ ) {
-			image[ pixelx ][ pixely ] = _base->interpPixel( ( float ) pixelx, ( float ) pixely );
-			//note: since pixelx and pixely are integers, I have no idea why Brian is using interp_pixel for this.
-		}
-	}
-}
-
-/**
- * Compute the array index in an x-contiguous array.
- * @param sizex total size of the first dimension
- * @param x the index within the first dimension
- * @param y the index within the second dimension
- * @return the index within a one dimensional array representing two dimensions
- */
-int compute1D ( int sizex, int x, int y ) {
-	return ( x + sizex * y );
-}
-
-/**
- * This method makes an array of pixel values, rather than the image_basic in-house valarray usage, which, while fast, is also highly confusing.
- * @param baseImage
- * @param image
- */
-void val21DArray ( FImage *_base, float image[] ) {
-	int sizex = _base->width;
-	int sizey = _base->height;
-	int pixelx = 0;
-	int pixely = 0;
-
-	for ( pixely = 0; pixely < sizey; pixely++ ) {
-		for ( pixelx = 0; pixelx < sizex; pixelx++ ) {
-			image[ compute1D( sizex, pixelx, pixely ) ] = _base->get( pixelx, pixely );
-		}
-	}
-}
-
-/**
- * Returns the nearest neighbor values
- * @param x current x
- * @param y current y
- * @param newx pointer to nearest neighbor value for x
- * @param newy pointer to nearest neighbor value for y
- */
-void nearestneighbor ( double x, double y, double* newx, double* newy ) {
-	*newx = rnd( x );
-	*newy = rnd( y );
-}
-
-/**
- * This function down-samples an image by an integer factor.
- * Assumes values of images are integers
- * This is NOT a particularly fast function.
- * @param resamp
- * @param base
- * @param factor
- */
-void resample ( FImage *resamp, FImage *base, int factor ) {
-	unsigned int rx_size = base->width / factor;
-	unsigned int ry_size = base->height / factor;
-	//resamp->set_color_mode(base.get_color_mode());
-	resamp->initialize( rx_size, ry_size, base->metadata );
-	//int cm = base.get_color_mode();
-	//image_basic *resamp(rx_size,ry_size,base.get_color_mode()); 
-
-	double inv_area = 1.0 / ( factor * factor );
-	for ( unsigned int ry = 0; ry < ry_size; ++ry ) {
-		for ( unsigned int rx = 0; rx < rx_size; ++rx ) {
-			double pixel_value = 0;
-			for ( unsigned int by = ry * factor; by < ( ry + 1 ) * factor; ++by )
-				for ( unsigned int bx = rx * factor; bx < ( rx + 1 ) * factor; ++bx )
-					pixel_value += base->fastGet( bx, by );
-			resamp->set( rx, ry, rnd( pixel_value * inv_area ) );
-		}
-	}
-}
-
 argo::argo () {
 	blocksize = 0;
 	A0_max = 5, B0_max = 5;
@@ -275,12 +89,14 @@ argo::argo () {
 	 * To avoid being trapped in some rut, it seems to be VERY important to have the reflection
 	 * parameter slightly less than 1.0, and the growth parameter less than 2.0.
 	 */
-	simplex_growth = 1.5, simplex_contract = 0.5, simplex_reflect = 0.9, simplex_halt = 1e-11;
+	simplex_growth = 1.5, simplex_contract = 0.5, simplex_reflect = 0.9, simplex_halt = 0;
 	simplex_iterations = 5000;
 
-	results.bestdiff = 1e37;
+	results.bestdiff = INFINITY;
 	results.count = 0;
 	results.iterations_ignored = 0;
+
+	images_store.flipped = 0;
 }
 
 argo::~argo () {
@@ -309,8 +125,6 @@ argo::~argo () {
 		delete images_store.resamp_sliver;
 	}
 }
-
-#ifdef CODEFOLD
 
 void argo::logInputParams () {
 	printf( "******** Input Parameters ********\n" );
@@ -365,9 +179,9 @@ void argo::logBetaGammaInfo () {
 void argo::logCurrentBest () {
 	printf( "\n" );
 	printf( "BEST: %e   COUNT: %I64u\n", results.bestdiff, results.count );
-	printf( "           %f, %f, %e, %e\n", results.bestA0, results.bestA1, results.bestA2, results.bestA3 );
-	printf( "           %f, %f, %e, %e\n", results.bestB0, results.bestB1, results.bestB2, results.bestB3 );
-	printf( "           %f, %f, %e, %e\n", results.bestC0, results.bestC1, results.bestC2, results.bestC3 );
+	printf( "           %e, %e, %e, %e\n", results.bestA0, results.bestA1, results.bestA2, results.bestA3 );
+	printf( "           %e, %e, %e, %e\n", results.bestB0, results.bestB1, results.bestB2, results.bestB3 );
+	printf( "           %e, %e, %e, %e\n", results.bestC0, results.bestC1, results.bestC2, results.bestC3 );
 	printf( "\n" );
 }
 
@@ -406,20 +220,14 @@ void argo::logProgramInformation () {
 	}
 	else {
 		fprintf( paramfile, "Simplex Routine Parameters : \n" );
-		fprintf( paramfile, "A Params\n" );
-		fprintf( paramfile, "%e %e %e %e\n", simplex_best[ 0 ], simplex_best[ 2 ], simplex_best[ 4 ], simplex_best[ 6 ] );
-		fprintf( paramfile, "B Params\n" );
-		fprintf( paramfile, "%e %e %e %e\n", simplex_best[ 1 ], simplex_best[ 3 ] - 1.0, simplex_best[ 5 ], simplex_best[ 7 ] );
-		fprintf( paramfile, "C Params\n" );
-		fprintf( paramfile, "%e %e %e %e\n", simplex_best[ 8 ], simplex_best[ 9 ], simplex_best[ 10 ], simplex_best[ 11 ] );
+		fprintf( paramfile, "A0 = %e;\nA1 = %e;\nA2 = %e;\nA3 = %e;\n", simplex_best[ 0 ], simplex_best[ 2 ], simplex_best[ 4 ], simplex_best[ 6 ] );
+		fprintf( paramfile, "B0 = %e;\nB1 = %e;\nB2 = %e;\nB3 = %e;\n", simplex_best[ 1 ], simplex_best[ 3 ] - 1.0, simplex_best[ 5 ], simplex_best[ 7 ] );
+		fprintf( paramfile, "C0 = %e;\nC1 = %e;\nC2 = %e;\nC3 = %e;\n", simplex_best[ 8 ], simplex_best[ 9 ], simplex_best[ 10 ], simplex_best[ 11 ] );
 		fprintf( paramfile, "\n" );
 		fprintf( paramfile, "Grid Search Parameters : \n" );
-		fprintf( paramfile, "A Params\n" );
-		fprintf( paramfile, "%e %e %e %e\n", grid_best[ 0 ], grid_best[ 2 ], grid_best[ 4 ], grid_best[ 6 ] );
-		fprintf( paramfile, "B Params\n" );
-		fprintf( paramfile, "%e %e %e %e\n", grid_best[ 1 ], grid_best[ 3 ] - 1.0, grid_best[ 5 ], grid_best[ 7 ] );
-		fprintf( paramfile, "C Params\n" );
-		fprintf( paramfile, "%e %e %e %e\n", grid_best[ 8 ], grid_best[ 9 ], grid_best[ 10 ], grid_best[ 11 ] );
+		fprintf( paramfile, "A0 = %e;\nA1 = %e;\nA2 = %e;\nA3 = %e;\n", grid_best[ 0 ], grid_best[ 2 ], grid_best[ 4 ], grid_best[ 6 ] );
+		fprintf( paramfile, "B0 = %e;\nB1 = %e;\nB2 = %e;\nB3 = %e;\n", grid_best[ 1 ], grid_best[ 3 ] - 1.0, grid_best[ 5 ], grid_best[ 7 ] );
+		fprintf( paramfile, "C0 = %e;\nC1 = %e;\nC2 = %e;\nC3 = %e;\n", grid_best[ 8 ], grid_best[ 9 ], grid_best[ 10 ], grid_best[ 11 ] );
 		fprintf( paramfile, "\n" );
 		fprintf( paramfile, "Time Information : \n" );
 		fprintf( paramfile, "Image Read Time : \t%f\n", times.image_read_time );
@@ -429,23 +237,38 @@ void argo::logProgramInformation () {
 		fprintf( paramfile, "Simplex Routine Time : \t%f\n", times.simplex_time );
 		fprintf( paramfile, "Image Write Time\t%f\n", times.image_write_time );
 		fprintf( paramfile, "Total Program Time : \t%f\n", times.total_time );
+		fprintf( paramfile, "\n");
+		fprintf( paramfile, "Program Information : \n" );
+		fprintf( paramfile, "Total Parameters Generated : %I64u\n", results.count );
+		fprintf( paramfile, "Best Difference Calculated by Grid Search : %e\n", results.bestdiff );
+		fprintf( paramfile, "Total Iterations Ignored : %I64u\n", results.iterations_ignored );
 
 		fclose( paramfile );
 		printf( "********End of Program********\n" );
 	}
 }
 
-#endif
-
-void argo::readImages () {
+void argo::readImages ( bool verbose ) {
 	// Read image files and resample based upon provided precision.
-	images_store.orig_base = new FImage( base_name );
-	images_store.orig_sliver = new FImage( sliver_name );
-	images_store.resamp_base = new FImage( images_store.orig_base->metadata );
-	images_store.resamp_sliver = new FImage( images_store.orig_sliver->metadata );
+	if ( verbose ) {
+		printf( "Reading in images : '%s' and '%s'.\n", base_name.c_str(), sliver_name.c_str() );
+	}
+	images_store.orig_base = new FImage( base_name, images_store.flipped );
+	images_store.orig_sliver = new FImage( sliver_name, images_store.flipped );
 
-	resample( images_store.resamp_base, images_store.orig_base, precision );
-	resample( images_store.resamp_sliver, images_store.orig_sliver, precision );
+	if ( verbose ) {
+		printf( "Images read succesfully!\n" );
+		printf( "Image Type : %d.\n", images_store.orig_base->metadata.type );
+		printf( "Image Format : %d.\n", images_store.orig_base->metadata.format );
+	}
+
+
+
+	images_store.resamp_base = new FImage( images_store.orig_base->metadata );
+	images_store.resamp_sliver = new FImage( images_store.orig_base->metadata );
+
+	images_store.orig_base->resample( images_store.resamp_base, precision );
+	images_store.orig_sliver ->resample( images_store.resamp_sliver, precision );
 
 	// Set dimension parameters.
 	rbase_width = images_store.resamp_base->width;
@@ -456,12 +279,9 @@ void argo::readImages () {
 
 void argo::readInputParams ( int argc, char *argv[] ) {
 
-	if ( ( argc < 33 ) || ( argc > 33 ) ) {
-		//perror("Error: Usage is ImageMaster -i: ImagePath -s: SliverPath -A0: value -A1: value -A2: value -B0: value -B1: value -B2: value -p: precision -b: blocksize -g: growth -c: contract -r: reflection\n");
-		//ACTUALLY, there should be at least 31 arguments now, since I added cubic terms
-		//Also, usage is -0 A0value, -1 B0value, -2 a1value -3 b1value -4 a2multiplier -5 b2multiplier, etc.
-		printf( "Amount of arguments provided : %d\n", argc );
-	}
+	//perror("Error: Usage is ImageMaster -i: ImagePath -s: SliverPath -A0: value -A1: value -A2: value -B0: value -B1: value -B2: value -p: precision -b: blocksize -g: growth -c: contract -r: reflection\n");
+	//ACTUALLY, there should be at least 31 arguments now, since I added cubic terms
+	//Also, usage is -0 A0value, -1 B0value, -2 a1value -3 b1value -4 a2multiplier -5 b2multiplier, etc.
 
 	char command_arg;
 	for ( int i = 1; i < argc; ++i ) {
@@ -483,6 +303,9 @@ void argo::readInputParams ( int argc, char *argv[] ) {
 						if ( sliver_name[ x ] == '|' )
 							sliver_name[ x ] = ' ';
 					}
+					break;
+				case 'f':
+					images_store.flipped = atoi( argv[ i + 1 ] ) != 0 ? true : false;
 					break;
 				case '0':
 					A0_max = atoi( argv[ i + 1 ] );
@@ -509,7 +332,7 @@ void argo::readInputParams ( int argc, char *argv[] ) {
 					b3_mult = atof( argv[ i + 1 ] );
 					break;
 				case 'p':
-					precision = atoi( argv[ i + 1 ] );
+					precision = atoi( argv[ i + 1 ] ) != 0 ? atoi( argv[ i + 1 ] ) : 1;
 					break;
 				case 'b':
 					blocksize = atoi( argv[ i + 1 ] );
@@ -533,10 +356,6 @@ void argo::readInputParams ( int argc, char *argv[] ) {
 					break;
 			}
 		}
-	}
-	// If precision has not been specified, use maximum precision.
-	if ( precision == 0 ) {
-		precision = 1;
 	}
 }
 
@@ -639,20 +458,25 @@ void argo::initCombos () {
 			}
 		}
 	}
-	std::sort( combos.A_combos, ( combos.A_combos + ( A_combos_size ) ) );
-	std::sort( combos.B_combos, ( combos.B_combos + ( B_combos_size ) ) );
+	std::sort( combos.A_combos, combos.A_combos + A_combos_size );
+	std::sort( combos.B_combos, combos.B_combos + B_combos_size );
 }
 
 void argo::initBetaGamma()	{
 	// Initialize array for dynamic_diffs once.
 	beta_gamma_store.dynamic_diffs = new beta_values[dyn_diffs_size];
 
-
 	int smin = rbase_width / 2 - rsliver_width / 2;
 	double partial_sum1;
 	double partial_sum2;
 	double partial_sum3;
 	double diff;
+
+	data_range = images_store.resamp_base->getRange();
+
+	double zstep = data_range / 256;	// Hardcoded for stepping over image.
+	double inv2zstep = 1 / ( 2 * zstep );
+	double invzstep2 = 1 / ( zstep * zstep );
 
 	// Figure out maximum sliver drift, make difflets larger by that much.  (Apoints+Asliverpoints)
 	beta_gamma_store.difflets = new gamma_values[numblocks * A_difflet_points *
@@ -680,22 +504,18 @@ void argo::initBetaGamma()	{
 						for ( long int x = x_initial, xs = sliver_block_x;
 								xs < sliver_block_x + sliver_block_width;
 								++x, ++xs ) {
-							diff = -images_store.resamp_sliver->fastGet(xs, ys) + images_store.resamp_base->fastGet(x, y) - 1;
+							diff = -images_store.resamp_sliver->fastGet( xs, ys ) + images_store.resamp_base->fastGet( x, y ) - zstep;
 							partial_sum1 += diff * diff;
-							++diff;
+							diff += zstep;
 							partial_sum2 += diff * diff;
-							++diff;
+							diff += zstep;
 							partial_sum3 += diff * diff;
 						}
 					}
-
-					double y1 = ( double ) partial_sum1;
-					double y2 = ( double ) partial_sum2;
-					double y3 = ( double ) partial_sum3;
-
-					double g2 = 0.5 * ( y1 + y3 ) - y2;
-					double g1 = 0.5 * ( y3 - y1 );
-					double g0 = y2;
+					
+					double g2 = ( 0.5 * ( partial_sum1 + partial_sum3 ) - partial_sum2 ) * invzstep2;
+					double g1 = ( partial_sum3 - partial_sum1 ) * inv2zstep;
+					double g0 = partial_sum2;
 
 					difflet.G0 = g0;
 					difflet.G1 = g1;
@@ -731,6 +551,7 @@ void argo::performGridSearch(bool verbose)	{
 		yb6_arr[i] = yb5_arr[i] * yb_arr[i];
 	}
 
+	tbb::critical_section cs;
 	//TO DO for tomorrow: think about how to do initial and final B1 sensibly and symmetrically
 	//Refill DIFFS
 	long int Aindex_f = 0, Bindex_f = 0;
@@ -750,37 +571,34 @@ void argo::performGridSearch(bool verbose)	{
 			memset(beta_gamma_store.dynamic_diffs, 0, dyn_diffs_size * sizeof(beta_values));
 
 			// Populate array with new beta values.
-			long int diffs_address;
-			long int difflets_address;
-			int Xc = -sliver_block_width;
-			int totX;
-			int totY;
-			int blocktimesApoints = A_points * numblocks;
-			long A0_B0_adj_inc = numblocks;  //A0increase is now assumed to be 1.
-			long MaxA0_times_numblocks = A0_max * numblocks;
-			long B0_adj_min = -B0_max * blocktimesApoints;
-			long B0_adj_max = B0_max * blocktimesApoints;
-			//long BO_adj_inc = B0increase*numblocks*Apoints;
-			long BO_adj_inc = blocktimesApoints;  //B0increase is now assumed to be 1.
-			int finalAddress = -mult3;
+			// long int diffs_address;
+			// long int difflets_address;
+			// int Xc = -sliver_block_width;
+			// int totX;
+			// int totY;
+			// int finalAddress = -mult3;
 
 			for (int sb = 0; sb < num_sliver_blocks; ++sb) {
 				//Now calculate offsets sx and symeh
-				finalAddress += mult3;
-				Xc += sliver_block_width;
+				//finalAddress += mult3;
+				//Xc += sliver_block_width;
+				int finalAddress = mult3 * sb;
+				int Xc = sliver_block_width * sb;
 				int Xc2 = Xc * Xc;
 				int doubleXc = 2 * Xc;
 				int sx = A_sliver_drift - (int)(Xc * A1_i);  //which A1 do I use?  first?  last?  average?
 				int sy = B_sliver_drift - (int)(Xc * B1_i);
 				//printf("%f, %d, %d, %d\n",A1_i,sb,sx,sy);
-				int YPart = -mult1;
+				//int YPart = -mult1;
 				for (int dy = 0; dy < B_points; ++dy) {
-					totY = ( dy + sy ) * mult2;
-					YPart += mult1;
-					int XPart = -numblocks;
+					int totY = ( dy + sy ) * mult2;
+					//YPart += mult1;
+					int YPart = mult1 * dy;
+					//int XPart = -numblocks;
 					for (int dx = 0; dx < A_points; ++dx) {
-						totX = (dx + sx) * numblocks;
-						XPart += (int)numblocks;
+						int totX = (dx + sx) * numblocks;
+						int XPart = ( ( int ) numblocks ) * dx;
+						//XPart += (int)numblocks;
 						for (int b = 0; b < numblocks; ++b) {  //partially unroll this loop?
 							//diffs[dy,dx,b] += difflets[sb,dy+sy,dx+sx,b]
 
@@ -788,22 +606,28 @@ void argo::performGridSearch(bool verbose)	{
 							//printf("X position: %f \n",Xc);
 
 							//difflets_address =(b + (dx+sx)*numblocks + (dy+sy)*numblocks*Adiffletpoints + sb*numblocks*Adiffletpoints*Bdiffletpoints);
-							difflets_address = ( b + totX + totY + finalAddress );
+							long int difflets_address = ( b + totX + totY + finalAddress );
 							//diffs_address = b+dx*numblocks+dy*numblocks*Apoints;
-							diffs_address = b + XPart + YPart;
+							long int diffs_address = b + XPart + YPart;
 							beta_gamma_store.dynamic_diffs[diffs_address].B0 += beta_gamma_store.difflets[difflets_address].G0;
 							beta_gamma_store.dynamic_diffs[diffs_address].B1 += beta_gamma_store.difflets[difflets_address].G1;
 							beta_gamma_store.dynamic_diffs[diffs_address].B2 += beta_gamma_store.difflets[difflets_address].G2;
-							beta_gamma_store.dynamic_diffs[diffs_address].B3 += (beta_gamma_store.difflets[difflets_address].G1 * Xc);	// Adjust for new Beta3 which is sum of negatives
+							beta_gamma_store.dynamic_diffs[diffs_address].B3 += (beta_gamma_store.difflets[difflets_address].G1 * Xc);
 							beta_gamma_store.dynamic_diffs[diffs_address].B4 += beta_gamma_store.difflets[difflets_address].G2 * Xc2;
-							beta_gamma_store.dynamic_diffs[diffs_address].B5 += (beta_gamma_store.difflets[difflets_address].G2 * doubleXc);// Adjust for new Beta5 which is sum of negatives
+							beta_gamma_store.dynamic_diffs[diffs_address].B5 += (beta_gamma_store.difflets[difflets_address].G2 * doubleXc);
 							//}
 						}
 					}
 				}
 			}
 
-			tbb::critical_section cs;
+			int blocktimesApoints = A_points * numblocks;
+			long A0_B0_adj_inc = numblocks;
+			long MaxA0_times_numblocks = A0_max * numblocks;
+			long B0_adj_min = -B0_max * blocktimesApoints;
+			long B0_adj_max = B0_max * blocktimesApoints;
+			long B0_adj_inc = blocktimesApoints;
+
 			tbb::parallel_for((long int)Bindex_i, Bindex_f, (long int)1, [&](long int Bindex)
 			{
 				for (long int Aindex = Aindex_i; Aindex < Aindex_f; ++Aindex) {
@@ -814,7 +638,7 @@ void argo::performGridSearch(bool verbose)	{
 					double A2 = combos.A_combos[Aindex].P2;
 					double A3 = combos.A_combos[Aindex].P3;
 
-					for (long B0_adj = B0_adj_min; B0_adj <= B0_adj_max; B0_adj += BO_adj_inc) {
+					for (long B0_adj = B0_adj_min; B0_adj <= B0_adj_max; B0_adj += B0_adj_inc) {
 						long A0_B0_adj_max = MaxA0_times_numblocks + B0_adj;
 
 						for (long A0_B0_adj = -MaxA0_times_numblocks + B0_adj; A0_B0_adj <= A0_B0_adj_max; A0_B0_adj += A0_B0_adj_inc) {
@@ -870,7 +694,7 @@ void argo::performGridSearch(bool verbose)	{
 							
 
 							// Critical section lock to prevent data overwriting.
-							cs.lock();
+							unsigned long long ignored = 0;
 							double function = 0;
 							for (int i = 0; i<numblocks; i++){
 								long xpos = (long)(A1*yb_arr[i] + A2*yb2_arr[i] + A3*yb3_arr[i] + A_total_drift);
@@ -893,16 +717,15 @@ void argo::performGridSearch(bool verbose)	{
 								double sum = Beta0 + Beta1*delz + Beta2*delz*delz
 									+ Beta3*C1 + Beta4*C1*C1 + Beta5*C1*delz;
 
-								if (sum < 0)	{
-									printf("Negative Sum!\n");
+								if (sum <= 0)	{
+									printf("Negative or zero sum!\n");
 								}
 
 								function += sum;
-								if (function > results.bestdiff)	{
-									results.iterations_ignored += numblocks - (i + 1);
-									break;
-								}
+								ignored += function > results.bestdiff ? numblocks - ( i + 1 ) : 0;
 							}
+
+							cs.lock();
 							// Note: this "if" block doesn't seem to slow down the program at all, compared to simpler statements.
 							if (function <= results.bestdiff){
 								results.bestdiff = function;
@@ -924,6 +747,7 @@ void argo::performGridSearch(bool verbose)	{
 								}
 							}
 							results.count++;
+							results.iterations_ignored += ignored;
 							// Unlock here.
 							cs.unlock();
 						}
@@ -932,6 +756,12 @@ void argo::performGridSearch(bool verbose)	{
 			} );
 		}
 	}
+	delete[] yb_arr;
+	delete[] yb2_arr;
+	delete[] yb3_arr;
+	delete[] yb4_arr;
+	delete[] yb5_arr;
+	delete[] yb6_arr;
 }
 
 void argo::performSimplexRoutine () {
@@ -963,18 +793,18 @@ void argo::performSimplexRoutine () {
 
 	precisionArr[ 0 ] = 0.1;
 	precisionArr[ 1 ] = 0.1;
-	precisionArr[ 2 ] = 0.1 / images_store.orig_base->height;
-	precisionArr[ 3 ] = 0.1 / images_store.orig_base->height;
-	precisionArr[ 4 ] = 0.1 / pow( images_store.orig_base->height, 2.0 );
-	precisionArr[ 5 ] = 0.1 / pow( images_store.orig_base->height, 2.0 );
-	precisionArr[ 6 ] = 0.1 / pow( images_store.orig_base->height, 3.0 );
-	precisionArr[ 7 ] = 0.1 / pow( images_store.orig_base->height, 3.0 );
-	precisionArr[ 8 ] = 0.1;
-	precisionArr[ 9 ] = 0.1 / images_store.orig_base->height;
-	precisionArr[ 10 ] = 0.1 / pow( images_store.orig_base->height, 2.0 );
-	precisionArr[ 11 ] = 0.1 / pow( images_store.orig_base->height, 3.0 );
+	precisionArr[ 2 ] = 0.1 / ( double ) images_store.orig_base->height;
+	precisionArr[ 3 ] = 0.1 / ( double ) images_store.orig_base->height;
+	precisionArr[ 4 ] = 0.1 / ( double ) ( images_store.orig_base->height * images_store.orig_base->height );
+	precisionArr[ 5 ] = 0.1 / ( double ) ( images_store.orig_base->height * images_store.orig_base->height );
+	precisionArr[ 6 ] = 0.1 / ( double ) ( images_store.orig_base->height * images_store.orig_base->height * images_store.orig_base->height );
+	precisionArr[ 7 ] = 0.1 / ( double ) ( images_store.orig_base->height * images_store.orig_base->height * images_store.orig_base->height );
+	precisionArr[ 8 ] = 0.1 * data_range;
+	precisionArr[ 9 ] = 0.1 * data_range / ( double ) images_store.orig_base->height;
+	precisionArr[ 10 ] = 0.1 * data_range / ( double ) ( images_store.orig_base->height * images_store.orig_base->height );
+	precisionArr[ 11 ] = 0.1 * data_range / ( double ) ( images_store.orig_base->height * images_store.orig_base->height * images_store.orig_base->height );
 
-	simplex( images_store.orig_base, images_store.orig_sliver, grid_best, simplex_best, 12, precisionArr, simplex_reflect, simplex_contract, simplex_growth,
+	simplex( images_store.orig_base, images_store.orig_sliver, grid_best, simplex_best, true, precisionArr, simplex_reflect, simplex_contract, simplex_growth,
 			simplex_halt, simplex_iterations );
 }
 
@@ -985,13 +815,14 @@ void argo::performImageCorrection () {
 	double cterms[ 4 ] = { simplex_best[ 8 ], simplex_best[ 9 ], simplex_best[ 10 ], simplex_best[ 11 ] };
 
 	FImage* final = new FImage( images_store.orig_base->width, images_store.orig_base->height, images_store.orig_base->metadata );
-	warpImage( images_store.orig_base, images_store.orig_base->width, images_store.orig_base->height, aterms, bterms, cterms, 1, final );
-	printf( "Image Warped!\n" );
+	images_store.orig_base->warpBase( final, aterms, bterms, cterms, 1, interp_type );
+	
 
 	std::string finalstring = base_name;
 	std::basic_string < char > finalmarkerstring( "_corrected" );
 	finalstring.insert( finalstring.rfind( "." ), finalmarkerstring );
 	final->writeImage( finalstring );
+	delete final;
 }
 
 void argo::correctImages () {
@@ -1004,53 +835,48 @@ void argo::correctImages ( bool verbose ) {
 
 void argo::correctImages ( int argc, char* argv[] ) {
 	clock_t begintime = clock();
-	bool debugmode = false;
 	clock_t time0, time1;
 
 	time0 = clock();
 	readInputParams( argc, argv );
-	if ( debugmode ) {
-		precision = 1;
-		blocksize = 8;
-	}
-	readImages();
+	readImages( false );
 	initCalculatedParams();
 	time1 = clock();
-	times.image_read_time = ( ( double ) time1 - ( double ) time0 ) / 1000;
+	times.image_read_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
 	time0 = clock();
 	initCombos();
 	time1 = clock();
-	times.combos_time = ( ( double ) time1 - ( double ) time0 ) / 1000;
+	times.combos_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
 	time0 = clock();
 	initBetaGamma();
 	time1 = clock();
-	times.diffs_time = ( ( double ) time1 - ( double ) time0 ) / 1000;
+	times.diffs_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
 	time0 = clock();
 	performGridSearch( false );
 	time1 = clock();
-	times.grid_time = ( ( double ) time1 - ( double ) time0 ) / 1000;
+	times.grid_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
 	time0 = clock();
 	performSimplexRoutine();
 	time1 = clock();
-	times.simplex_time = ( ( double ) time1 - ( double ) time0 ) / 1000;
+	times.simplex_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
 	time0 = clock();
 	performImageCorrection();
 	time1 = clock();
-	times.image_write_time = ( ( double ) time1 - ( double ) time0 ) / 1000;
+	times.image_write_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
-	int endtime = clock();
-	times.total_time = ( double ) ( endtime - begintime ) * .001;
+	clock_t endtime = clock();
+	times.total_time = ( ( double ) endtime - ( double ) begintime ) / CLOCKS_PER_SEC;
 }
 
 void argo::correctImages ( int argc, char* argv[], bool verbose ) {
 	clock_t begintime = clock();
-	bool debugmode = false;
 	clock_t time0, time1;
+	bool debugmode = false;
 
 	time0 = clock();
 	readInputParams( argc, argv );
@@ -1062,20 +888,20 @@ void argo::correctImages ( int argc, char* argv[], bool verbose ) {
 		logInputParams();
 	}
 
-	readImages();
+	readImages( verbose );
 	initCalculatedParams();
 	time1 = clock();
-	times.image_read_time = ( ( double ) time1 - ( double ) time0 ) / 1000;
+	times.image_read_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
 	time0 = clock();
 	initCombos();
 	time1 = clock();
-	times.combos_time = ( ( double ) time1 - ( double ) time0 ) / 1000;
+	times.combos_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
 	time0 = clock();
 	initBetaGamma();
 	time1 = clock();
-	times.diffs_time = ( ( double ) time1 - ( double ) time0 ) / 1000;
+	times.diffs_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
 	if ( verbose ) {
 		logCalculatedParams();
@@ -1086,7 +912,7 @@ void argo::correctImages ( int argc, char* argv[], bool verbose ) {
 	time0 = clock();
 	performGridSearch( verbose );
 	time1 = clock();
-	times.grid_time = ( ( double ) time1 - ( double ) time0 ) / 1000;
+	times.grid_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
 	if ( verbose ) {
 		logGridSearchInfo();
@@ -1095,7 +921,7 @@ void argo::correctImages ( int argc, char* argv[], bool verbose ) {
 	time0 = clock();
 	performSimplexRoutine();
 	time1 = clock();
-	times.simplex_time = ( ( double ) time1 - ( double ) time0 ) / 1000;
+	times.simplex_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
 	if ( verbose ) {
 		logSimplexRoutineInfo();
@@ -1104,26 +930,12 @@ void argo::correctImages ( int argc, char* argv[], bool verbose ) {
 	time0 = clock();
 	performImageCorrection();
 	time1 = clock();
-	times.image_write_time = ( ( double ) time1 - ( double ) time0 ) / 1000;
+	times.image_write_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
-	int endtime = clock();
-	times.total_time = ( double ) ( endtime - begintime ) * .001;
+	clock_t endtime = clock();
+	times.total_time = ( ( double ) endtime - ( double ) begintime ) / CLOCKS_PER_SEC;
 
 	if ( verbose ) {
 		logProgramInformation();
 	}
-}
-
-/**
- * Main method for our program.
- */
-int main ( int argc, char *argv[] ) {
-	FreeImage_Initialise();
-
-	argo* program = new argo();
-	program->correctImages( argc, argv, true );
-	delete program;
-
-	FreeImage_DeInitialise();
-	getchar();
 }
