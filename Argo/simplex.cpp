@@ -1,155 +1,1060 @@
 /*Here is an implementation in C.  Using it on Rosenbrock's famous function
 
- myfunc(x,y)   =   (1-x)^2  +  100[ (x^2 - y)^2 ]
+determineFitness(x,y)   =   (1-x)^2  +  100[ (x^2 - y)^2 ]
 
- from the traditional starting point   (x,y) = (-1.2, +1.0)
- this code calculated a minimum at     (x,y) = ( 1.000026  ,  1.000051 )
- while using 177 evaluations of the function myfunc.
- (It's easy to see that Rosenbrock's function myfunc has a minimum at (1,1)).
+from the traditional starting point   (x,y) = (-1.2, +1.0)
+this code calculated a minimum at     (x,y) = ( 1.000026  ,  1.000051 )
+while using 177 evaluations of the function determineFitness.
+(It's easy to see that Rosenbrock's function determineFitness has a minimum at (1,1)).
 
- No warranty is expressed or implied, use at your own risk, remember that
- this software is worth what you paid for it, and you paid zero.
+No warranty is expressed or implied, use at your own risk, remember that
+this software is worth what you paid for it, and you paid zero.
 
- =============================================================================
- =============================================================================
- */
+=============================================================================
+=============================================================================
+*/
 
 #define _CRT_SECURE_NO_WARNINGS
 
 #include <stdio.h>
 #include <math.h>
 #include <iostream>
+#include <fstream>
 #include <time.h>
 #include <vector>
 #include "Eigen\Eigen"
-#include <tbb\parallel_for.h>
-#include <tbb\combinable.h>
 #include "simplex.h"
-#include "FImage.h"
 
-/* Nelder and Mead    Simplex for minimization of functions */
 
-#define         VARS            (13)//(20)    /* # of parms to optimize */
-//seems to me that VARS= 8 should be okay.  But it caused a buffer overrun error.  --Matt
-//#define         MAXI            (5000)  /* iteration limit        */
-//#define         ERRHALT         (1e-9)//(1e-9)  /* std error termination  */
-//Setting this to 1e-10 stops it maybe 25 iterations sooner than 1e-11.  Big deal!  Might as well go for higher precision.
-#define         PRINTEM         (500)//(10)    /* progress report period */
+#define         PRINTEM         (500)
+
 //#define         ALP             (1.5)   /* reflection parameter   */
 //#define         BET             (0.7)   /* contraction parameter  */
 //#define         GAM             (2.1)   /* expansion parameter    */
 //#define         TINY            (1e-5)  /* first Simplex displace */
 
-/* global variables */
-long function_evals = 0;
-//double  p[VARS][VARS];
-bool debug = false;
-//double lastfunc; Never used.
-int operations = 0;
-//global declaration
-double simplex_matrix[ VARS ][ VARS ];
-double fvals[ VARS ];
-double x_r[ VARS ];
-double x_e[ VARS ];
-//double x_c[VARS];
-//double x_j[VARS];
-//double x_l[VARS];
-//double x_a[VARS];
-//double x_h[VARS];
-double centroid[ VARS ];
-long double f_x_r, f_x_e, f_x_c;	// f_x_j, f_x_a;
+bool fastZ = true;
 
-/* Here is Rosenbrock's test function */
-/*      the infamous parabolic valley or "banana function" */
+long fitness_evals = 0;
+bool debug = false;
+int operations = 0;
 
 FImage *base;
 FImage *sliver;
 int *basesize;
 int *sliversize;
 
-double m1yfunc ( double x[] ) {
-	double a, b;
+#ifdef S_MODE_OPENCL
+unsigned int nextPow2( unsigned int x ) {
+	--x;
+	x |= x >> 1;
+	x |= x >> 2;
+	x |= x >> 4;
+	x |= x >> 8;
+	x |= x >> 16;
+	return ++x;
+}
 
-	function_evals++; /* for informational purposes only */
-	a = ( 1.0 - x[ 0 ] );
-	b = 10.0 * ( ( x[ 0 ] * x[ 0 ] ) - x[ 1 ] );
-	return ( ( ( a * a ) + ( b * b ) ) );
+cl::Program::Sources sources;
+cl::Platform default_platform;
+cl::Device default_device;
+cl::Context context;
+cl::Program program;
+cl::Buffer cl_sliver;
+cl::Buffer cl_sliver_interp;
+cl::Buffer cl_base;
+cl::Buffer cl_base_interp;
+cl::Buffer cl_krcs;
+cl::Buffer cl_rcs;
+
+cl::Buffer cl_partial_sums;
+cl::Buffer cl_partial_weights;
+cl::Buffer cl_partial_sums_errors;
+cl::Buffer cl_partial_weights_errors;
+
+cl::Buffer cl_final_result;
+cl::CommandQueue queue;
+
+cl::make_kernel< cl::Buffer&, cl::Buffer&, cl_double, cl_double,
+	cl_int, cl_int, cl_int, cl_int, cl_int > *
+	clWarpSliverCubic;
+
+cl::make_kernel< cl::Buffer&, cl::Buffer&, cl_double, cl_double, cl_double, cl_double, cl_double, cl_double, cl_double, cl_double,
+	cl_int, cl_int, cl_int, cl_int, cl_int, cl_int, cl_int > *
+	clWarpBaseCubic;
+
+cl::make_kernel< cl::Buffer&, cl::Buffer&, cl_double, cl_double,
+	cl_int, cl_int, cl_int, cl_int, cl_int, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg& > *
+	clWarpSliverBspline;
+
+cl::make_kernel< cl::Buffer&, cl::Buffer&, cl_double, cl_double, cl_double, cl_double, cl_double, cl_double, cl_double, cl_double,
+	cl_int, cl_int, cl_int, cl_int, cl_int, cl_int, cl_int, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg& > *
+	clWarpBaseBspline;
+
+cl::make_kernel< cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl_int, cl_int, cl_int, cl_int, cl_int, cl_int > * clColumnSums;
+cl::make_kernel< cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl_int, cl_int, cl_int, cl_int, cl_int, cl_int > * clRowSums;
+cl::make_kernel< cl::Buffer&, cl::Buffer&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl_int, cl_int, cl_int > * clRCResults;
+
+cl::make_kernel < cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&,
+	cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&,
+	cl_int, cl_int, cl_int, cl_int,
+	cl_double, cl_double, cl_double > * clPartialDifference;
+
+cl::make_kernel < cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&,
+	cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&,
+	cl_int, cl_int, cl_int > * clFinalDifference;
+
+/*
+cl::make_kernel < cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&,
+	cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&,
+	cl_int, cl_int, cl_int, cl_int,
+	cl_double, cl_double, cl_double > *
+	clDifferenceCalculation;
+*/
+
+cl::LocalSpaceArg locals;
+double* fitness_value;
+
+
+
+void initializeOpenCLContext() {
+	double* double_sliv = new double[ sliver->width * sliver->height ];
+	double* double_base = new double[ base->width * base->height ];
+	for ( int i = 0; i < sliver->width * sliver->height; ++i ) {
+		double_sliv[ i ] = sliver->data[ i ];
+	}
+	for ( int i = 0; i < base->width * base->height; ++i ) {
+
+		double_base[ i ] = base->data[ i ];
+		// fprintf( image_file, "%f\n", base->data[ i ] );
+		// fprintf( image_array_file, "%f\n", double_base[ i ] );
+	}
+
+	// Get all the platforms available
+	
+	std::vector<cl::Platform> all_platforms;
+	cl::Platform::get( &all_platforms );
+	if ( all_platforms.size() == 0 ) {
+		printf( "No platforms found. Check OpenCL installation!\n" );
+		getchar();
+		exit( 1 );
+	}
+	else {
+		printf( "Found %d platforms.\n", all_platforms.size() );
+	}
+	printf( "\n" );
+	default_platform = all_platforms[ 0 ];
+	printf( "Using platform %s\n", default_platform.getInfo<CL_PLATFORM_NAME>().c_str() );
+	printf( "\n" );
+
+	// Get default device of the default platform.
+	std::vector<cl::Device> all_devices;
+	default_platform.getDevices( CL_DEVICE_TYPE_ALL, &all_devices );
+	if ( all_devices.size() == 0 ) {
+		printf( "No devices found. Check OpenCL installation!\n" );
+		getchar();
+		exit( 1 );
+	}
+	else {
+		printf( "Found %d devices.\n", all_devices.size() );
+	}
+
+	// Print device list.
+	for ( int i = 0; i < all_devices.size(); ++i ) {
+		printf( "Device %d name : %s\n", i, all_devices[ i ].getInfo<CL_DEVICE_NAME>().c_str() );
+	}
+
+	printf( "\n" );
+	default_device = all_devices[ 1 ];
+	printf( "Using Primary Device : %s\n", default_device.getInfo<CL_DEVICE_NAME>().c_str() );
+	printf( "\n" );
+	context = cl::Context( { default_device } );
+
+
+	std::vector<size_t> max_work_group_size = default_device.getInfo<CL_DEVICE_MAX_WORK_ITEM_SIZES>();
+	printf( "Maximum work item sizes : ( %d, %d, %d ).\n", max_work_group_size[ 0 ], max_work_group_size[ 1 ], max_work_group_size[ 2 ] );
+	// max_work_group_size = 1;
+
+	int local_mem_size = default_device.getInfo<CL_DEVICE_LOCAL_MEM_SIZE>();
+	printf( "Maximum local memory size : %d kBs.\n", local_mem_size / 1024 );
+
+	unsigned long global_mem_size = default_device.getInfo<CL_DEVICE_GLOBAL_MEM_SIZE>();
+	printf( "Maximum global memory size : %I64u MBs.\n", global_mem_size / 1024 / 1024 );
+
+	int number_compute_units = default_device.getInfo<CL_DEVICE_MAX_COMPUTE_UNITS>();
+	printf( "Number of compute units : %d.\n", number_compute_units );
+
+	sources.push_back( { bicubic_kernels_string.c_str(), bicubic_kernels_string.length() } );
+	sources.push_back( { summation_kernel_string.c_str(), summation_kernel_string.length() } );
+	sources.push_back( { bspline_kernels_string.c_str(), bspline_kernels_string.length() } );
+
+	program = cl::Program( context, sources );
+	if ( program.build( { default_device } ) != CL_SUCCESS ) {
+		printf( "Error building: %s\n", program.getBuildInfo<CL_PROGRAM_BUILD_LOG>( default_device ).c_str() );
+		getchar();
+		exit( 1 );
+	}
+	else {
+		printf( "Kernel building success!\n" );
+	}
+
+	// create buffers on the device
+	cl_int* error_code;
+	cl_sliver = cl::Buffer( context, CL_MEM_READ_ONLY, sizeof( double ) * sliver->width * sliver->height );
+	cl_sliver_interp = cl::Buffer( context, CL_MEM_READ_WRITE, sizeof( double ) * sliver->width * sliver->height );
+	cl_base = cl::Buffer( context, CL_MEM_READ_ONLY, sizeof( double ) * base->width * base->height );
+	cl_base_interp = cl::Buffer( context, CL_MEM_READ_WRITE, sizeof( double ) * sliver->width * sliver->height );
+	cl_krcs = cl::Buffer( context, CL_MEM_READ_WRITE, sizeof( double ) * ( sliver->width + sliver->height + 1 ) );
+	cl_rcs = cl::Buffer( context, CL_MEM_READ_WRITE, sizeof( double ) * ( sliver->width + sliver->height ) );
+
+	cl_partial_sums = cl::Buffer( context, CL_MEM_READ_WRITE, sizeof( double ) * sliver->height );
+	cl_partial_weights = cl::Buffer( context, CL_MEM_READ_WRITE, sizeof( double ) * sliver->height );
+	cl_partial_sums_errors = cl::Buffer( context, CL_MEM_READ_WRITE, sizeof( double ) * sliver->height );
+	cl_partial_weights_errors = cl::Buffer( context, CL_MEM_READ_WRITE, sizeof( double ) * sliver->height );
+
+	cl_final_result = cl::Buffer( context, CL_MEM_READ_WRITE, sizeof( double ) );
+
+	//create queue to which we will push commands for the device.
+	queue = cl::CommandQueue( context, default_device );
+
+	queue.enqueueWriteBuffer( cl_sliver, CL_BLOCKING, 0, sizeof( double ) * sliver->width * sliver->height, double_sliv );
+	queue.enqueueWriteBuffer( cl_base, CL_BLOCKING, 0, sizeof( double ) * base->width * base->height, double_base );
+
+	clWarpSliverCubic = new cl::make_kernel< cl::Buffer&, cl::Buffer&, cl_double, cl_double,
+		cl_int, cl_int, cl_int, cl_int, cl_int >( cl::Kernel( program, "clWarpSliverCubic" ) );
+
+	clWarpBaseCubic = new cl::make_kernel< cl::Buffer&, cl::Buffer&, cl_double, cl_double, cl_double, cl_double, cl_double, cl_double, cl_double, cl_double,
+		cl_int, cl_int, cl_int, cl_int, cl_int, cl_int, cl_int >
+		( cl::Kernel( program, "clWarpBaseCubic" ) );
+
+	clWarpSliverBspline = new cl::make_kernel< cl::Buffer&, cl::Buffer&, cl_double, cl_double,
+		cl_int, cl_int, cl_int, cl_int, cl_int, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg& >
+		( cl::Kernel( program, "clWarpSliverBspline" ) );
+
+	clWarpBaseBspline = new cl::make_kernel< cl::Buffer&, cl::Buffer&, cl_double, cl_double, cl_double, cl_double, cl_double, cl_double, cl_double, cl_double,
+		cl_int, cl_int, cl_int, cl_int, cl_int, cl_int, cl_int, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg& >
+		( cl::Kernel( program, "clWarpBaseBspline" ) );
+
+	clColumnSums = new cl::make_kernel< cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl_int, cl_int, cl_int, cl_int, cl_int, cl_int >
+		( cl::Kernel( program, "clColumnSums" ) );
+	clRowSums = new cl::make_kernel< cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl_int, cl_int, cl_int, cl_int, cl_int, cl_int >
+		( cl::Kernel( program, "clRowSums" ) );
+	clRCResults = new cl::make_kernel< cl::Buffer&, cl::Buffer&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl_int, cl_int, cl_int >( cl::Kernel( program, "clRCResults" ) );
+
+	clPartialDifference = new cl::make_kernel < cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&,
+		cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&,
+		cl_int, cl_int, cl_int, cl_int,
+		cl_double, cl_double, cl_double >( cl::Kernel( program, "clPartialDifference" ) );
+
+	clFinalDifference = new cl::make_kernel < cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&,
+		cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&,
+		cl_int, cl_int, cl_int >( cl::Kernel( program, "clFinalDifference" ) );
+
+	/*
+
+	clDifferenceCalculation = new cl::make_kernel < cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&,
+		cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&, cl::LocalSpaceArg&,
+		cl_int, cl_int, cl_int, cl_int,
+		cl_double, cl_double, cl_double >
+		( cl::Kernel( program, "clDifferenceCalculation" ) );
+	*/
+
+	locals = cl::Local( sizeof( double ) * 4 );
+	fitness_value = new double[ 1 ];
+}
+#else
+	double* base_array;
+	double* sliver_array;
+	double* KRCs;
+	double* RCs;
+	#ifdef S_MODE_TBB
+		tbb::task_scheduler_init init;
+		tbb::critical_section cs;
+	#endif
+#endif
+
+double fastZFitness( double vertex[], bool writeFile ) {
+	double As[ 4 ] = { vertex[ 0 ], vertex[ 2 ], vertex[ 4 ], vertex[ 6 ] };
+	double Bs[ 4 ] = { vertex[ 1 ], vertex[ 3 ], vertex[ 5 ], vertex[ 7 ] };
+
+	int xbp = base->width / 2 - sliver->width / 2;
+
+	bool exists = false;
+	int maxX = sliver->width - 1;
+	int sliver_minY = 0;
+	int sliver_maxY = sliver->height - 1;
+	int base_minY = 0;
+	int base_maxY = base->height - 1;
+	while ( !exists ) {
+		if ( maxX - As[ 1 ] * maxX > sliver->width - 1 ) {
+			maxX--;
+		}
+		else {
+			exists = true;
+		}
+	}
+	exists = false;
+	while ( !exists ) {
+		bool exist2 = false;
+		if ( sliver_maxY + -( Bs[ 1 ] - 1 ) * maxX > sliver->height - 1 ) {
+			sliver_maxY--;
+		}
+		else {
+			exist2 = true;
+		}
+		if ( sliver_minY + -( Bs[ 1 ] - 1 ) * maxX < 0 ) {
+			sliver_minY++;
+		}
+		else {
+			if ( exist2 ) {
+				exists = true;
+			}
+		}
+	}
+	exists = false;
+	while ( !exists ) {
+		int y2 = base_maxY * base_maxY;
+		int y3 = y2 * base_maxY;
+		bool exist2 = false;
+		if ( Bs[ 0 ] + Bs[ 1 ] * base_maxY + Bs[ 2 ] * y2 + Bs[ 3 ] * y3 > sliver->height - 1 ) {
+			base_maxY--;
+		}
+		else {
+			exist2 = true;
+		}
+
+		y2 = base_minY * base_minY;
+		y3 = y2 * base_minY;
+		if ( Bs[ 0 ] + Bs[ 1 ] * base_minY + Bs[ 2 ] * y2 + Bs[ 3 ] * y3 < 0 ) {
+			base_minY++;
+		}
+		else {
+			if ( exist2 ) {
+				exists = true;
+			}
+		}
+	}
+
+	int maxY, minY;
+	double weightTop, weightBottom, weightRight;
+	weightRight = ceil( ( maxX - As[ 1 ] * maxX ) ) - ( maxX - As[ 1 ] * maxX );
+	if ( base_maxY < sliver_maxY ) {
+		maxY = base_maxY;	// Ceil for weight
+		weightTop = ceil( Bs[ 0 ] + Bs[ 1 ] * maxY + Bs[ 2 ] * maxY + Bs[ 3 ] * maxY ) - ( Bs[ 0 ] + Bs[ 1 ] * maxY + Bs[ 2 ] * maxY + Bs[ 3 ] * maxY );
+	}
+	else if ( base_maxY > sliver_maxY ) {
+		maxY = sliver_maxY;	// Ceil for weight
+		weightTop = ceil( maxY - ( Bs[ 1 ] - 1 ) * maxX ) - ( maxY - ( Bs[ 1 ] - 1 ) * maxX );
+	}
+	else {
+		maxY = sliver_maxY;
+		if ( ceil( Bs[ 0 ] + Bs[ 1 ] * maxY + Bs[ 2 ] * maxY + Bs[ 3 ] * maxY ) - ( Bs[ 0 ] + Bs[ 1 ] * maxY + Bs[ 2 ] * maxY + Bs[ 3 ] * maxY ) <
+			 ceil( maxY - ( Bs[ 1 ] - 1 ) * maxX ) - ( maxY - ( Bs[ 1 ] - 1 ) * maxX ) ) {
+			weightTop = ceil( Bs[ 0 ] + Bs[ 1 ] * maxY + Bs[ 2 ] * maxY + Bs[ 3 ] * maxY ) - ( Bs[ 0 ] + Bs[ 1 ] * maxY + Bs[ 2 ] * maxY + Bs[ 3 ] * maxY );
+		}
+		else {
+			weightTop = ceil( maxY - ( Bs[ 1 ] - 1 ) * maxX ) - ( maxY - ( Bs[ 1 ] - 1 ) * maxX );
+		}
+	}
+
+	if ( base_minY > sliver_minY ) {
+		minY = base_minY;	// Floor for weight
+		weightBottom = ( Bs[ 0 ] + Bs[ 1 ] * minY + Bs[ 2 ] * minY + Bs[ 3 ] * minY ) - floor( ( Bs[ 0 ] + Bs[ 1 ] * minY + Bs[ 2 ] * minY + Bs[ 3 ] * minY ) );
+	}
+	else if ( base_minY < sliver_minY ) {
+		minY = sliver_minY;	// Floor for weight
+		weightBottom = ( minY - ( Bs[ 1 ] - 1 ) * maxX ) - floor( ( minY - ( Bs[ 1 ] - 1 ) * maxX ) );
+	}
+	else {
+		minY = sliver_minY;
+		if ( ( minY - ( Bs[ 1 ] - 1 ) * maxX ) - floor( ( minY - ( Bs[ 1 ] - 1 ) * maxX ) ) <
+			 ( Bs[ 0 ] + Bs[ 1 ] * minY + Bs[ 2 ] * minY + Bs[ 3 ] * minY ) - floor( ( Bs[ 0 ] + Bs[ 1 ] * minY + Bs[ 2 ] * minY + Bs[ 3 ] * minY ) ) ) {
+			weightBottom = ( minY - ( Bs[ 1 ] - 1 ) * maxX ) - floor( ( minY - ( Bs[ 1 ] - 1 ) * maxX ) );
+		}
+		else {
+			weightBottom = ( Bs[ 0 ] + Bs[ 1 ] * minY + Bs[ 2 ] * minY + Bs[ 3 ] * minY ) - floor( ( Bs[ 0 ] + Bs[ 1 ] * minY + Bs[ 2 ] * minY + Bs[ 3 ] * minY ) );
+		}
+	}
+
+	int m = maxX + 1;
+	int n = maxY - minY + 1;
+	int size = m - 1 + n;
+	double inv_n = 1 / ( double ) n;
+	double inv_m = 1 / ( double ) m;
+	double inv_mn = 1 / ( double ) ( m * n );
+
+#ifdef S_MODE_OPENCL
+	// Find largest power of 2 the dimensions fit into
+	int dimX = maxX + 1;
+	int dimY = maxY - minY + 1;
+	int size1 = 64;
+	int size2 = 64;
+
+	cl::EnqueueArgs range_sliver_args( queue, cl::NullRange, cl::NDRange( ( int ) ceil( dimX / 1.0 ) * size1 ), cl::NDRange( size1 ) );
+	cl::EnqueueArgs range_base_args( queue, cl::NullRange, cl::NDRange( ( int ) ceil( dimY / 1.0 ) * size2 ), cl::NDRange( size2 ) );
+
+	int num_sub_blocks1 = ceil( sqrt( n ) * 2 );
+	// num_sub_blocks1 = nextPow2( num_sub_blocks1 );
+	int num_blocks1 = 128 / num_sub_blocks1;
+	int num_sub_blocks2 = ceil( sqrt( m ) * 2 );
+	// num_sub_blocks2 = nextPow2( num_sub_blocks2 );
+	int num_blocks2 = 256 / num_sub_blocks2;
+
+
+	if ( default_device.getInfo<CL_DEVICE_TYPE>() == CL_DEVICE_TYPE_CPU ) {
+		num_sub_blocks1 = n;
+		num_blocks1 = 1;
+		num_sub_blocks2 = m;
+		num_blocks2 = 1;
+	}
+	cl::EnqueueArgs range_column_sum_args( queue, cl::NullRange, cl::NDRange( m * num_sub_blocks1 ), cl::NDRange( num_sub_blocks1 * num_blocks1 ) );
+	cl::EnqueueArgs range_row_sum_args( queue, cl::NullRange, cl::NDRange( n * num_sub_blocks2 ), cl::NDRange( num_sub_blocks2 * num_blocks2 ) );
+
+	int size_global = nextPow2( n );
+	int row_local = nextPow2( sqrt( m ) * 2 );
+	cl::EnqueueArgs range_results_args( queue, cl::NullRange, cl::NDRange( size_global ), cl::NDRange( row_local ) );
+
+	int partial_range = sqrt( n );
+	cl::EnqueueArgs range_partial_sum_args( queue, cl::NullRange, cl::NDRange( m * partial_range ), cl::NDRange( partial_range ) );
+
+	int final_range = sqrt( m );
+	cl::EnqueueArgs range_final_results_args( queue, cl::NullRange, cl::NDRange( final_range ), cl::NDRange( final_range ) );
+
+	// int final_size = 256;
+	// cl::EnqueueArgs range_final_args( queue, cl::NullRange, cl::NDRange( final_size ), cl::NDRange( final_size ) );
+
+
+	clWarpSliverCubic->operator()( range_sliver_args, cl_sliver, cl_sliver_interp,
+					   ( double ) As[ 1 ], ( double ) Bs[ 1 ],
+					   ( int ) sliver->width, ( int ) sliver->height,
+					   maxX, minY, maxY ).wait();
+	clWarpBaseCubic->operator()( range_base_args, cl_base, cl_base_interp,
+					 ( double ) As[ 0 ], ( double ) As[ 1 ], ( double ) As[ 2 ], ( double ) As[ 3 ],
+					 ( double ) Bs[ 0 ], ( double ) Bs[ 1 ], ( double ) Bs[ 2 ], ( double ) Bs[ 3 ],
+					 ( int ) sliver->width, ( int ) sliver->height, ( int ) base->width,
+					 xbp, maxX, minY, maxY ).wait();
+	clColumnSums->operator()( range_column_sum_args, cl_sliver_interp, cl_base_interp, cl_krcs,
+				  cl::Local( sizeof( double ) * num_blocks1 * num_sub_blocks1 ),
+				  cl::Local( sizeof( double ) * num_blocks1 * num_sub_blocks1 ),
+				  ( int ) sliver->width, minY, m, n, num_sub_blocks1, num_blocks1 ).wait();
+	clRowSums->operator()( range_row_sum_args, cl_sliver_interp, cl_base_interp, cl_krcs,
+			   cl::Local( sizeof( double ) * num_blocks2 * num_sub_blocks2 ),
+			   cl::Local( sizeof( double ) * num_blocks2 * num_sub_blocks2 ),
+			   ( int ) sliver->width, minY, m, n, num_sub_blocks2, num_blocks2 ).wait();
+
+	clRCResults->operator()( range_results_args, cl_krcs, cl_rcs,
+				cl::Local( sizeof( double ) * row_local ), cl::Local( sizeof( double ) * row_local ),
+				( int ) sliver->width, m, n ).wait();
+
+	clWarpSliverBspline->operator()( range_sliver_args, cl_sliver, cl_sliver_interp,
+							( double ) As[ 1 ], ( double ) Bs[ 1 ],
+							( int ) sliver->width, ( int ) sliver->height,
+							maxX, minY, maxY, locals, locals, locals, locals ).wait();
+	clWarpBaseBspline->operator()( range_base_args, cl_base, cl_base_interp,
+						( double ) As[ 0 ], ( double ) As[ 1 ], ( double ) As[ 2 ], ( double ) As[ 3 ],
+						( double ) Bs[ 0 ], ( double ) Bs[ 1 ], ( double ) Bs[ 2 ], ( double ) Bs[ 3 ],
+						( int ) sliver->width, ( int ) sliver->height, ( int ) base->width,
+						xbp, maxX, minY, maxY, locals, locals, locals, locals ).wait();
+
+	clPartialDifference->operator()( range_partial_sum_args, cl_partial_sums, cl_partial_weights, cl_partial_sums_errors, cl_partial_weights_errors, cl_rcs, cl_base_interp, cl_sliver_interp,
+						 cl::Local( sizeof( double ) * partial_range ), cl::Local( sizeof( double ) * partial_range ),
+						 cl::Local( sizeof( double ) * partial_range ), cl::Local( sizeof( double ) * partial_range ),
+						 maxX, minY, maxY, ( int ) sliver->width, weightRight, weightTop, weightBottom ).wait();
+
+	clFinalDifference->operator()( range_final_results_args, cl_partial_sums, cl_partial_weights, cl_partial_sums_errors, cl_partial_weights_errors, cl_final_result,
+						cl::Local( sizeof( double ) * final_range ), cl::Local( sizeof( double ) * final_range ),
+						cl::Local( sizeof( double ) * final_range ), cl::Local( sizeof( double ) * final_range ),
+						maxX, minY, maxY ).wait();
+
+	/*
+	clDifferenceCalculation->operator()( range_final_args, cl_final_result, cl_rcs,
+							 cl_base_interp, cl_sliver_interp,
+							 cl::Local( sizeof( double ) * final_size ), cl::Local( sizeof( double ) * final_size ),
+							 cl::Local( sizeof( double ) * final_size ), cl::Local( sizeof( double ) * final_size ),
+							 maxX, minY, maxY, ( int ) sliver->width, weightRight, weightTop, weightBottom ).wait();
+	*/
+
+	queue.enqueueReadBuffer( cl_final_result, CL_TRUE, 0, sizeof( double ), fitness_value );
+
+	return fitness_value[ 0 ];
+
+#else
+
+
+
+#ifdef S_MODE_TBB
+	tbb::parallel_for( 0, maxX + 1, 1, [&]( int x )	{
+#elif defined( S_MODE_SEQUENTIAL )
+	for ( int x = 0; x < maxX + 1; x++ ) {
+#endif
+		double sx[ 4 ]; // these are the distances for each row
+		double sy[ 4 ]; // these are the distances for each column
+		double ux[ 4 ]; // these are the weight for the rows
+		double uy[ 4 ]; // these are the weights for the columns
+
+		double yoffset = -( Bs[ 1 ] - 1 ) * x;
+		double origX = x - As[ 1 ] * x;
+
+		sx[ 0 ] = abs( origX - floor( origX - 1 ) ); // these get the distances for each row and column from the initial point, positive
+		sy[ 0 ] = abs( yoffset - floor( yoffset - 1 ) );
+		sx[ 1 ] = abs( 1 - sx[ 0 ] );
+		sy[ 1 ] = abs( 1 - sy[ 0 ] );
+		sx[ 2 ] = abs( 1 - sx[ 1 ] );
+		sy[ 2 ] = abs( 1 - sy[ 1 ] );
+		sx[ 3 ] = 1 + sx[ 2 ];
+		sy[ 3 ] = 1 + sy[ 2 ];
+
+		for ( int j = 0; j < 4; ++j ) { // these, dependent upon the distance, implement the polynomial weighting
+			double x2 = sx[ j ] * sx[ j ];
+			double x3 = x2 * sx[ j ];
+			double y2 = sy[ j ] * sy[ j ];
+			double y3 = y2 * sy[ j ];
+			if ( sx[ j ] <= 1 && sx[ j ] >= 0 ) {
+				ux[ j ] = ( S_INTERP_CONST_A + 2 ) * x3 - ( S_INTERP_CONST_A + 3 ) * x2 + 1;
+			}
+			else if ( sx[ j ] > 1 && sx[ j ] <= 2 ) {
+				ux[ j ] = S_INTERP_CONST_A * x3 - 5 * S_INTERP_CONST_A * x2 + 8 * S_INTERP_CONST_A * sx[ j ] - 4 * S_INTERP_CONST_A;
+			}
+			else {
+				ux[ j ] = 0;
+			}
+			if ( sy[ j ] <= 1 && sy[ j ] >= 0 ) {
+				uy[ j ] = ( S_INTERP_CONST_A + 2 ) * y3 - ( S_INTERP_CONST_A + 3 ) * y2 + 1;
+			}
+			else if ( sy[ j ] > 1 && sy[ j ] <= 2 ) {
+				uy[ j ] = S_INTERP_CONST_A * y3 - 5 * S_INTERP_CONST_A * y2 + 8 * S_INTERP_CONST_A * sy[ j ] - 4 * S_INTERP_CONST_A;
+			}
+			else {
+				uy[ j ] = 0;
+			}
+		}
+		//////////////////////////////////////////////////////////////////////////////////////
+		for ( int y = minY; y < maxY + 1; ++y ) {
+			double pixelvalue = 0;
+			double origY = y + yoffset;
+			if ( floor ( origX ) == 0 || floor ( origY ) == 0 || floor ( origX ) >= sliver->width - 2 || floor ( origY ) >= sliver->height - 2 ) {
+				pixelvalue = sliver->interpPixel( origX, origY, F_BILINEAR );
+			}
+			else {
+				for ( int j = 0; j < 4; ++j ) {
+					for ( int i = 0; i < 4; ++i ) {
+						pixelvalue += sliver->fastGet( floor( origX ) - 1 + i, floor( origY ) - 1 + j ) * ux[ i ] * uy[ j ];
+					}
+				}
+			}
+			sliver_array[ x + sliver->width * y ] = pixelvalue;
+		}
+	}
+#ifdef S_MODE_TBB
+	);
+#endif
+
+#ifdef S_MODE_TBB
+	tbb::parallel_for( minY, maxY + 1, 1, [&]( int y )	{
+#elif defined( S_MODE_SEQUENTIAL )
+	for ( int y = minY; y < maxY + 1; ++y ) {
+#endif
+		double sx[ 4 ]; // these are the distances for each row
+		double sy[ 4 ]; // these are the distances for each column
+		double ux[ 4 ]; // these are the weight for the rows
+		double uy[ 4 ]; // these are the weights for the columns
+
+		int ym2 = y * y;
+		int ym3 = ym2 * y;
+		double xoffset = As[ 0 ] + As[ 1 ] * y + As[ 2 ] * ym2 + As[ 3 ] * ym3;
+		double origY = Bs[ 0 ] + Bs[ 1 ] * y + Bs[ 2 ] * ym2 + Bs[ 3 ] * ym3;
+		/////////////////////////////////////////////////////////////////////////////////////
+
+		sx[ 0 ] = abs( xoffset - floor( xoffset - 1 ) ); // these get the distances for each row and column from the initial point, positive
+		sy[ 0 ] = abs( origY - floor( origY - 1 ) );
+		sx[ 1 ] = abs( 1 - sx[ 0 ] );
+		sy[ 1 ] = abs( 1 - sy[ 0 ] );
+		sx[ 2 ] = abs( 1 - sx[ 1 ] );
+		sy[ 2 ] = abs( 1 - sy[ 1 ] );
+		sx[ 3 ] = 1 + sx[ 2 ];
+		sy[ 3 ] = 1 + sy[ 2 ];
+		for ( int j = 0; j < 4; ++j ) { // these, dependent upon the distance, implement the polynomial weighting
+			double x2 = sx[ j ] * sx[ j ];
+			double x3 = x2 * sx[ j ];
+			double y2 = sy[ j ] * sy[ j ];
+			double y3 = y2 * sy[ j ];
+			if ( sx[ j ] <= 1 && sx[ j ] >= 0 ) {
+				ux[ j ] = ( S_INTERP_CONST_A + 2 ) * x3 - ( S_INTERP_CONST_A + 3 ) * x2 + 1;
+			}
+			else if ( sx[ j ] > 1 && sx[ j ] <= 2 ) {
+				ux[ j ] = S_INTERP_CONST_A * x3 - 5 * S_INTERP_CONST_A * x2 + 8 * S_INTERP_CONST_A * sx[ j ] - 4 * S_INTERP_CONST_A;
+			}
+			else {
+				ux[ j ] = 0;
+			}
+			if ( sy[ j ] <= 1 && sy[ j ] >= 0 ) {
+				uy[ j ] = ( S_INTERP_CONST_A + 2 ) * y3 - ( S_INTERP_CONST_A + 3 ) * y2 + 1;
+			}
+			else if ( sy[ j ] > 1 && sy[ j ] <= 2 ) {
+				uy[ j ] = S_INTERP_CONST_A * y3 - 5 * S_INTERP_CONST_A * y2 + 8 * S_INTERP_CONST_A * sy[ j ] - 4 * S_INTERP_CONST_A;
+			}
+			else {
+				uy[ j ] = 0;
+			}
+		}
+		//////////////////////////////////////////////////////////////////////////////////////
+		for ( int x = 0; x < maxX + 1; ++x ) {
+			double pixelvalue = 0;
+			double origX = xbp + x + xoffset;
+			if ( floor ( origX ) == 0 || floor ( origY ) == 0 || floor ( origX ) >= base->width - 2 || floor ( origY ) >= base->height - 2 ) {
+				pixelvalue = base->interpPixel( origX, origY, F_BILINEAR );
+			}
+			else {
+				for ( int j = 0; j < 4; ++j ) {
+					for ( int i = 0; i < 4; ++i ) {
+						pixelvalue += base->fastGet( floor( origX ) - 1 + i, floor( origY ) - 1 + j ) * ux[ i ] * uy[ j ];
+					}
+				}
+			}
+			base_array[ x + sliver->width * y ] = pixelvalue;
+		}
+	}
+#ifdef S_MODE_TBB
+	);
+#endif
+
+
+	double skr = 0;
+	double skr_error = 0;
+	// Column Sums
+#ifdef S_MODE_TBB
+	tbb::parallel_for( 0, m, 1, [&]( int i )	{
+#elif defined( S_MODE_SEQUENTIAL )
+	for ( int i = 0; i < m; i++ ) {
+#endif
+		double sum = 0;
+		double sum_error = 0;
+		for ( int j = 0; j < n; ++j ) {
+			double diff = base_array[ i + sliver->width * ( j + minY ) ] - sliver_array[ i + sliver->width * ( j + minY ) ];
+			double y = diff - sum_error;
+			double t = sum + y;
+			sum_error = ( t - sum ) - y;
+			sum = t;
+		}
+		KRCs[ i ] = sum;
+	}
+#ifdef S_MODE_TBB
+	);
+#endif
+
+
+	// Row Sums
+#ifdef S_MODE_TBB
+	tbb::parallel_for( 0, n, 1, [&]( int j )	{
+#elif defined( S_MODE_SEQUENTIAL )
+	for ( int j = 0; j < n; ++j ) {
+#endif
+		double sum = 0;
+		double sum_error = 0;
+		for ( int i = 0; i < m; ++i ) {
+			double diff = sliver_array[ i + sliver->width * ( j + minY ) ] - base_array[ i + sliver->width * ( j + minY ) ];
+			double y = diff - sum_error;
+			double t = sum + y;
+			sum_error = ( t - sum ) - y;
+			sum = t;
+		}
+		KRCs[ m + j ] = sum;
+	}
+#ifdef S_MODE_TBB
+	);
+#endif
+
+	// KRC Sum
+#ifdef S_MODE_TBB
+	tbb::parallel_for( 0, n, 1, [&]( int j )	{
+#elif defined( S_MODE_SEQUENTIAL )
+	for ( int j = 0; j < n; ++j ) {
+#endif
+#ifdef S_MODE_TBB
+		cs.lock();
+#endif
+		double y = KRCs[ m + j ] - skr_error;
+		double t = skr + y;
+		skr_error = ( t - skr ) - y;
+		skr = t;
+#ifdef S_MODE_TBB
+		cs.unlock();
+#endif
+	}
+#ifdef S_MODE_TBB
+	);
+#endif
+
+	// Matrix Computation
+#ifdef S_MODE_TBB
+	tbb::parallel_for( 1, m, 1, [&]( int i )	{
+#elif defined( S_MODE_SEQUENTIAL )
+	for ( int i = 1; i < m; ++i ) {
+#endif
+		RCs[ i - 1 ] = inv_n * ( KRCs[ i ] - KRCs[ 0 ] );
+	}
+#ifdef S_MODE_TBB
+	);
+#endif
+
+
+#ifdef S_MODE_TBB
+	tbb::parallel_for( m, size + 1, 1, [&]( int i ) {
+#elif defined( S_MODE_SEQUENTIAL )
+	for ( int i = m; i <= size; ++i ) {
+#endif
+		RCs[ i - 1 ] = -inv_n * KRCs[ 0 ] - inv_mn * skr + inv_m * KRCs[ i ];
+	}
+#ifdef S_MODE_TBB
+	);
+#endif
+
+
+#ifdef S_MODE_TBB
+	tbb::parallel_for( 0, maxX + 1, 1, [&]( int x )	{
+#elif defined( S_MODE_SEQUENTIAL )
+	for ( int x = 0; x < maxX + 1; x++ ) {
+#endif
+		double sx[ 4 ]; // these are the distances for each row
+		double sy[ 4 ]; // these are the distances for each column
+		double ux[ 4 ]; // these are the weight for the rows
+		double uy[ 4 ]; // these are the weights for the columns
+
+		double yoffset = -( Bs[ 1 ] - 1 ) * x;
+		double origX = x - As[ 1 ] * x;
+
+		/////////////////////////////////////////////////////////////////////////////////////
+
+		sx[ 0 ] = abs( origX - floor( origX - 1 ) ); // these get the distances for each row and column from the initial point, positive
+		sy[ 0 ] = abs( yoffset - floor( yoffset - 1 ) );
+		sx[ 1 ] = abs( 1 - sx[ 0 ] );
+		sy[ 1 ] = abs( 1 - sy[ 0 ] );
+		sx[ 2 ] = abs( 1 - sx[ 1 ] );
+		sy[ 2 ] = abs( 1 - sy[ 1 ] );
+		sx[ 3 ] = 1 + sx[ 2 ];
+		sy[ 3 ] = 1 + sy[ 2 ];
+
+		for ( int j = 0; j < 4; ++j ) { // these, dependent upon the distance, implement the polynomial weighting
+			double x2 = sx[ j ] * sx[ j ];
+			double x3 = x2 * sx[ j ];
+			double y2 = sy[ j ] * sy[ j ];
+			double y3 = y2 * sy[ j ];
+			if ( sx[ j ] <= 1 && sx[ j ] >= 0 ) {
+				ux[ j ] = ( ( 12 - ( 9 * S_INTERP_CONST_B ) - ( 6 * S_INTERP_CONST_C ) ) * x3 + ( -18 + ( 12 * S_INTERP_CONST_B ) + ( 6 * S_INTERP_CONST_C ) )*x2 + 6 - ( 2 * S_INTERP_CONST_B ) ) / 6;
+			}
+			else if ( sx[ j ] > 1 && sx[ j ] <= 2 ) {
+				ux[ j ] = ( ( -S_INTERP_CONST_B - ( 6 * S_INTERP_CONST_C ) )*x3 + ( ( 6 * S_INTERP_CONST_B ) + ( 30 * S_INTERP_CONST_C ) )*x2 + ( -( 12 * S_INTERP_CONST_B ) - ( 48 * S_INTERP_CONST_C ) )*( sx[ j ] ) + ( 8 * S_INTERP_CONST_B ) + ( 24 * S_INTERP_CONST_C ) ) / 6;
+			}
+			else {
+				ux[ j ] = 0;
+			}
+			if ( sy[ j ] <= 1 && sy[ j ] >= 0 ) {
+				uy[ j ] = ( ( 12 - ( 9 * S_INTERP_CONST_B ) - ( 6 * S_INTERP_CONST_C ) )*y3 + ( -18 + ( 12 * S_INTERP_CONST_B ) + ( 6 * S_INTERP_CONST_C ) )*y2 + 6 - ( 2 * S_INTERP_CONST_B ) ) / 6;
+			}
+			else if ( sy[ j ] > 1 && sy[ j ] <= 2 ) {
+				uy[ j ] = ( ( -S_INTERP_CONST_B - ( 6 * S_INTERP_CONST_C ) )*y3 + ( ( 6 * S_INTERP_CONST_B ) + ( 30 * S_INTERP_CONST_C ) )*y2 + ( -( 12 * S_INTERP_CONST_B ) - ( 48 * S_INTERP_CONST_C ) )*( sy[ j ] ) + ( 8 * S_INTERP_CONST_B ) + ( 24 * S_INTERP_CONST_C ) ) / 6;
+			}
+			else	{
+				uy[ j ] = 0;
+			}
+		}
+		//////////////////////////////////////////////////////////////////////////////////////
+		for ( int y = minY; y < maxY + 1; y++ ) {
+			double pixelvalue = 0;
+			double origY = y + yoffset;
+			if ( floor ( origX ) == 0 || floor ( origY ) == 0 || floor ( origX ) >= sliver->width - 2 || floor ( origY ) >= sliver->height - 2 ) {
+				pixelvalue = sliver->interpPixel( origX, origY, F_BILINEAR );
+			}
+			else {
+				for ( int j = 0; j < 4; ++j ) {
+					for ( int i = 0; i < 4; ++i ) {
+						pixelvalue += sliver->fastGet( floor( origX ) - 1 + i, floor( origY ) - 1 + j ) * ux[ i ] * uy[ j ];
+					}
+				}
+			}
+			sliver_array[ x + sliver->width * y ] = pixelvalue;
+		}
+	}
+#ifdef S_MODE_TBB
+	);
+#endif
+
+#ifdef S_MODE_TBB
+	tbb::parallel_for( minY, maxY + 1, 1, [&]( int y )	{
+#elif defined( S_MODE_SEQUENTIAL )
+	for ( int y = minY; y < maxY + 1; ++y ) {
+#endif
+		double sx[ 4 ]; // these are the distances for each row
+		double sy[ 4 ]; // these are the distances for each column
+		double ux[ 4 ]; // these are the weight for the rows
+		double uy[ 4 ]; // these are the weights for the columns
+
+		int ym2 = y * y;
+		int ym3 = ym2 * y;
+		double xoffset = As[ 0 ] + As[ 1 ] * y + As[ 2 ] * ym2 + As[ 3 ] * ym3;
+		double origY = Bs[ 0 ] + Bs[ 1 ] * y + Bs[ 2 ] * ym2 + Bs[ 3 ] * ym3;
+		/////////////////////////////////////////////////////////////////////////////////////
+
+		sx[ 0 ] = abs( xoffset - floor( xoffset - 1 ) ); // these get the distances for each row and column from the initial point, positive
+		sy[ 0 ] = abs( origY - floor( origY - 1 ) );
+		sx[ 1 ] = abs( 1 - sx[ 0 ] );
+		sy[ 1 ] = abs( 1 - sy[ 0 ] );
+		sx[ 2 ] = abs( 1 - sx[ 1 ] );
+		sy[ 2 ] = abs( 1 - sy[ 1 ] );
+		sx[ 3 ] = 1 + sx[ 2 ];
+		sy[ 3 ] = 1 + sy[ 2 ];
+		for ( int j = 0; j < 4; ++j ) { // these, dependent upon the distance, implement the polynomial weighting
+			double x2 = sx[ j ] * sx[ j ];
+			double x3 = x2 * sx[ j ];
+			double y2 = sy[ j ] * sy[ j ];
+			double y3 = y2 * sy[ j ];
+			if ( sx[ j ] <= 1 && sx[ j ] >= 0 ) {
+				ux[ j ] = ( ( 12 - ( 9 * S_INTERP_CONST_B ) - ( 6 * S_INTERP_CONST_C ) ) * x3 + ( -18 + ( 12 * S_INTERP_CONST_B ) + ( 6 * S_INTERP_CONST_C ) )*x2 + 6 - ( 2 * S_INTERP_CONST_B ) ) / 6;
+			}
+			else if ( sx[ j ] > 1 && sx[ j ] <= 2 ) {
+				ux[ j ] = ( ( -S_INTERP_CONST_B - ( 6 * S_INTERP_CONST_C ) )*x3 + ( ( 6 * S_INTERP_CONST_B ) + ( 30 * S_INTERP_CONST_C ) )*x2 + ( -( 12 * S_INTERP_CONST_B ) - ( 48 * S_INTERP_CONST_C ) )*( sx[ j ] ) + ( 8 * S_INTERP_CONST_B ) + ( 24 * S_INTERP_CONST_C ) ) / 6;
+			}
+			else	{
+			 	ux[ j ] = 0;
+			}
+			if ( sy[ j ] <= 1 && sy[ j ] >= 0 ) {
+				uy[ j ] = ( ( 12 - ( 9 * S_INTERP_CONST_B ) - ( 6 * S_INTERP_CONST_C ) )*y3 + ( -18 + ( 12 * S_INTERP_CONST_B ) + ( 6 * S_INTERP_CONST_C ) )*y2 + 6 - ( 2 * S_INTERP_CONST_B ) ) / 6;
+			}
+			else if ( sy[ j ] > 1 && sy[ j ] <= 2 ) {
+				uy[ j ] = ( ( -S_INTERP_CONST_B - ( 6 * S_INTERP_CONST_C ) )*y3 + ( ( 6 * S_INTERP_CONST_B ) + ( 30 * S_INTERP_CONST_C ) )*y2 + ( -( 12 * S_INTERP_CONST_B ) - ( 48 * S_INTERP_CONST_C ) )*( sy[ j ] ) + ( 8 * S_INTERP_CONST_B ) + ( 24 * S_INTERP_CONST_C ) ) / 6;
+			}
+			else	{
+			 	uy[ j ] = 0;
+			}
+		}
+		//////////////////////////////////////////////////////////////////////////////////////
+		for ( int x = 0; x < maxX + 1; ++x ) {
+			double pixelvalue = 0;
+			double origX = xbp + x + xoffset;
+			if ( floor ( origX ) == 0 || floor ( origY ) == 0 || floor ( origX ) >= base->width - 2 || floor ( origY ) >= base->height - 2 ) {
+				pixelvalue = base->interpPixel( origX, origY, F_BILINEAR );
+			}
+			else {
+				for ( int j = 0; j < 4; ++j ) {
+					for ( int i = 0; i < 4; ++i ) {
+						pixelvalue += base->fastGet( floor( origX ) - 1 + i, floor( origY ) - 1 + j ) * ux[ i ] * uy[ j ];
+					}
+				}
+			}
+			base_array[ x + sliver->width * y ] = pixelvalue;
+		}
+	}
+#ifdef S_MODE_TBB
+	);
+#endif
+
+	double sum = 0;
+	double area = 0;
+	double sum_error = 0;
+	double area_error = 0;
+
+#ifdef S_MODE_TBB
+	tbb::parallel_for( 0, maxX + 1, 1, [&]( int i )	{
+#elif defined( S_MODE_SEQUENTIAL )
+	for ( int i = 0; i <= maxX; ++i ) {
+#endif
+		double c_change = i == 0 ? 0 : RCs[ i - 1 ];
+		for ( int j = minY; j <= maxY; ++j ) {
+			double r_change = RCs[ maxX + j - minY ];
+			double weight = 1.0;
+			if ( i == maxX ) {
+				weight *= weightRight;
+			}
+			if ( j == maxY ) {
+				weight *= weightTop;
+			}
+			else if ( j == minY ) {
+				weight *= weightBottom;
+			}
+			double diff = ( base_array[ i + sliver->width * j ] + r_change ) - ( sliver_array[ i + sliver->width * j ] + c_change );
+			double val = diff * diff * weight;
+#ifdef S_MODE_TBB
+			cs.lock();
+#endif
+			double y = val - sum_error;
+			double t = sum + y;
+			sum_error = ( t - sum ) - y;
+			sum = t;
+
+			y = weight - area_error;
+			t = area + y;
+			area_error = ( t - area ) - y;
+			area = t;
+#ifdef S_MODE_TBB
+			cs.unlock();
+#endif
+		}
+	}
+#ifdef S_MODE_TBB
+	);
+#endif
+
+	if ( writeFile ) {
+		std::ofstream output;
+		output.open( "matrix.txt", std::ios::out );
+		if ( output.is_open() ) {
+			output << "MinY : " << minY << "\t MaxY : " << maxY << "\t MaxX : " << maxX << "\n";
+			output << "Fitness : " << sum / area << "\n";
+			output << "\n\n";
+			output << "This is the generated vector : \n\n";
+			for ( int i = 0; i < size; ++i ) {
+				output << KRCs[ i ] << "\n";
+			}
+			output << "\n\n";
+			output << "These are the computed C's : \n\n";
+			for ( int i = 0; i < m - 1; ++i ) {
+				output << RCs[ i ] << "\n";
+			}
+			output << "\n\n";
+			output << "These are the computed R's : \n\n";
+			for ( int i = m - 1; i < size; ++i ) {
+				output << RCs[ i ] << "\n";
+			}
+		}
+		output.close();
+
+		double Cs[ 4 ] = { 0, 0, 0, 0 };
+
+		FImage *warp_base = new FImage( base->width, base->height, base->metadata );
+		FImage *warp_sliver = new FImage( sliver->width, sliver->height, sliver->metadata );
+		base->warpBase ( warp_base, As, Bs, Cs, 1, S_WRITE_INTERP );
+		sliver->warpSliver ( warp_sliver, As, Bs, Cs, S_WRITE_INTERP );
+
+		for ( int i = 1; i <= maxX; i++ ) {
+			double z_change = RCs[ i - 1 ];
+			for ( int j = 0; j < warp_sliver->height; ++j ) {
+				if ( warp_sliver->fastGet( i, j ) == -std::numeric_limits<double>::infinity() ) continue;
+				warp_sliver->fastSet( i, j, warp_sliver->fastGet( i, j ) + z_change );
+			}
+		}
+
+		for ( int j = minY; j <= maxY; ++j ) {
+			double z_change = RCs[ maxX + j - minY ];
+			for ( int i = 0; i < warp_base->width; i++ ) {
+				if ( warp_base->fastGet( i, j ) == -std::numeric_limits<double>::infinity() )	continue;
+				warp_base->fastSet( i, j, warp_base->fastGet( i, j ) + z_change );
+			}
+		}
+
+		double base_min = warp_base->getMin();
+		double base_max = warp_base->getMax();
+		double sliver_min = warp_sliver->getMin();
+		double sliver_max = warp_sliver->getMax();
+		double min_val = base_min < sliver_min ? base_min : sliver_min;
+		double max_val = base_max < sliver_max ? base_max : sliver_max;
+		double slope = 1 / ( max_val - min_val );
+
+		warp_base->writeImage( "w_base.tif" );
+		warp_sliver->writeImage( "w_sliver.tif" );
+		warp_base->writeDisplayableImage( "dw_base.tif", slope, min_val );
+		warp_sliver->writeDisplayableImage( "dw_sliver.tif", slope, min_val );
+
+		delete warp_base;
+		delete warp_sliver;
+	}
+
+	return ( sum / area );
+
+#endif
+
 }
 
 /*This is the function that is minimized by simplex.  What it does, conceptually, is similar to performing a
- polynomial warp on BOTH the base image and the sliver, taking the sum of differences squared between them (normalized
- by area), and returning that.  In fact what it does is a little faster and more efficient.
+polynomial warp on BOTH the base image and the sliver, taking the sum of differences squared between them (normalized
+by area), and returning that.  In fact what it does is a little faster and more efficient.
 
- First, it "warps" the sliver by calculating, for each point in the sliver, where that point would end up,
- IF the transformation were done in reverse.  Here the sliver points (xs, ys) are transformed to (xsp, ysp),
- for "prime".  It takes only the liniar portion for this transformation.
+First, it "warps" the sliver by calculating, for each point in the sliver, where that point would end up,
+IF the transformation were done in reverse.  Here the sliver points (xs, ys) are transformed to (xsp, ysp),
+for "prime".  It takes only the liniar portion for this transformation.
 
- Then, it "warps" the base image by doing the full 3rd order polynomial warp on (xsp,ysp) to yield (xspp, yspp).
- The actual value is gotten from the main image by interpolation.
+Then, it "warps" the base image by doing the full 3rd order polynomial warp on (xsp,ysp) to yield (xspp, yspp).
+The actual value is gotten from the main image by interpolation.
 
- I tried writing this function using floats (instead of doubles) for some of the x and y coordinates, and found
- that the answer never converged beyond about 8 decimal places.  Plus, using floats instead of doubles didn't ACTUALLY
- make it ANY faster.  So doubles it is.
- */
-double myfunc ( double z[] ) {
-	function_evals++;  //increment global variable used to count function evaluations
+I tried writing this function using floats (instead of doubles) for some of the x and y coordinates, and found
+that the answer never converged beyond about 8 decimal places.  Plus, using floats instead of doubles didn't ACTUALLY
+make it ANY faster.  So doubles it is.
+*/
+double slowZFitness( double vertex[] ) {
+	fitness_evals++;  //increment global variable used to count function evaluations
 
-	double sum = 0.0;
-	double area = 0.0;
+	double sum = 0;
+	double area = 0;
 	int basexstart = basesize[ 0 ] / 2 - sliversize[ 0 ] / 2;
 	//	float ymin=0.0,ymax=(float) sliversize[1]-1;
 	double ymin = 0.0, ymax = ( double ) sliversize[ 1 ] - 1;
 
-	double C0 = z[ 8 ];
-	double C1 = z[ 9 ];
-	double C2 = z[ 10 ];
-	double C3 = z[ 11 ];
-	tbb::combinable < double > sums;
-	tbb::combinable < double > areas;
-	tbb::parallel_for( 1, sliversize[ 1 ], 1, [&](int ys) { //think about whether to reverse these two loops.
-				//sum+= C0*C0 + (C1-1)*(C1-1) + (C2-2)*(C2-2) +(C3-3)*(C3-3);
-				//for (int ys=0; ys<sliversize[1];++ys) { //think about whether to reverse these two loops.
-				for (int xs = 0; xs < sliversize[0]; ++xs) {   //fix so not starting at zero every time, only goes as far as needed
-					//reverse the linear transform to fix sliver drift
-					double weight;
-					double ysp = (double)(ys + (z[3] - 1.0)*xs);//be sure to get these signs correct!
-					double xsp = (double)(xs + z[2] * xs);//7/2/2008; I think this should be +.
-					//double ysp = (double) (ys); //- (z[3]-1.0)*xs);  //be sure to get these signs correct!
-					//double xsp = (double) (xs); //- z[2]*xs);
-					double ysp2 = ysp*ysp;
-					double ysp3 = ysp2*ysp;
-					//apply polynomial transform to account for image shift
-					double xspp = (double)(xsp + z[0] + z[2] * ysp + z[4] * ysp2 + z[6] * ysp3);
-					double yb = (double)(z[1] + z[3] * ysp + z[5] * ysp2 + z[7] * ysp3);
-					//transform to base image coordinates
-					double xb = basexstart + xspp;
-					//see if new point falls on the existing base image;
-					if ((yb >= ymin) && (yb <= ymax)) {
-						weight = 1L; //
-						if ((yb - ymin) < 1.0) weight = (yb - ymin);
-						if ((ymax - yb) < 1.0) weight = (ymax - yb);
-						//int Zs = sliver->get(rounds(xsp),rounds(ysp));
-						double Zs = sliver->get(xs, ys);
-						double Zm = base->interpPixel(xb, yb);
+	double C0 = vertex[ 8 ];
+	double C1 = vertex[ 9 ];
+	double C2 = vertex[ 10 ];
+	double C3 = vertex[ 11 ];
 
-						//double diff = sliver->get(xs,ys) - interp_pixel(base,xb,yb);
-						double diff = (C0 + Zm + C1*yb + C2*yb*yb + C3*yb*yb*yb) - (Zs - C1*xsp);
+#ifdef S_MODE_TBB
+	tbb::parallel_for( 1, sliversize[ 1 ], 1, [&]( int ys ) { //think about whether to reverse these two loops.
+#else
+	for ( int ys = 1; ys < sliversize[ 1 ] - 1; ++ys )	{
+#endif
+		//sum+= C0*C0 + (C1-1)*(C1-1) + (C2-2)*(C2-2) +(C3-3)*(C3-3);
+		//for (int ys=0; ys<sliversize[1];++ys) { //think about whether to reverse these two loops.
+		for ( int xs = 0; xs < sliversize[ 0 ]; ++xs ) {   //fix so not starting at zero every time, only goes as far as needed
+			//reverse the linear transform to fix sliver drift
+			double weight;
+			double ysp = ( double ) ( ys + ( vertex[ 3 ] - 1.0 )*xs );//be sure to get these signs correct!
+			double xsp = ( double ) ( xs + vertex[ 2 ] * xs );//7/2/2008; I think this should be +.
+			//double ysp = (double) (ys); //- (vertex[3]-1.0)*xs);  //be sure to get these signs correct!
+			//double xsp = (double) (xs); //- vertex[2]*xs);
+			double ysp2 = ysp*ysp;
+			double ysp3 = ysp2*ysp;
+			//apply polynomial transform to account for image shift
+			double xspp = ( double ) ( xsp + vertex[ 0 ] + vertex[ 2 ] * ysp + vertex[ 4 ] * ysp2 + vertex[ 6 ] * ysp3 );
+			double yb = ( double ) ( vertex[ 1 ] + vertex[ 3 ] * ysp + vertex[ 5 ] * ysp2 + vertex[ 7 ] * ysp3 );
+			//transform to base image coordinates
+			double xb = basexstart + xspp;
+			//see if new point falls on the existing base image;
+			if ( ( yb >= ymin ) && ( yb <= ymax ) ) {
+				weight = 1L; //
+				if ( ( yb - ymin ) < 1.0 ) weight = ( yb - ymin );
+				if ( ( ymax - yb ) < 1.0 ) weight = ( ymax - yb );
+				//int Zs = sliver->get(rounds(xsp),rounds(ysp));
+				double Zs = sliver->get( xs, ys );
+				double Zm = base->interpPixel( xb, yb, F_BILINEAR );
 
-						//	printf("MYFUNC VALS: %d %f %f\n", Zs, Zm, diff);
-						//	getchar();
+				//double diff = sliver->get(xs,ys) - interp_pixel(base,xb,yb);
+				double diff = ( C0 + Zm + C1*yb + C2*yb*yb + C3*yb*yb*yb ) - ( Zs - C1*xsp );
 
-						//sum += diff*diff* weight;
-						//area += weight;  //fix this so area is continuous function of x[...]
-						sums.local() += diff * diff * weight;
-						areas.local() += weight;
-					}
-				}
-			} );
-	sum = sums.combine( std::plus < double >() );
-	area = areas.combine( std::plus < double >() );
+				//	printf("MYFUNC VALS: %d %f %f\n", Zs, Zm, diff);
+				//	getchar();
+#ifdef S_MODE_TBB
+				cs.lock();
+#endif
+				sum += diff * diff * weight;
+				area += weight;
+#ifdef S_MODE_TBB
+				cs.unlock();
+#endif
+			}
+		}
+	} 
+#ifdef S_MODE_TBB
+	);
+#endif
+
 	return ( sum / area );
 }
-void copyBase ( FImage *_base ) {
+
+double determineFitness( double vertex[] ) {
+	fitness_evals++;  //increment global variable used to count function evaluations
+	if ( fastZ )
+		return fastZFitness( vertex, false );
+	else
+		return slowZFitness( vertex );
+}
+
+void copyBase( FImage *_base ) {
 	base = new FImage( _base->width, _base->height, _base->metadata );
 	for ( unsigned int i = 0; i < _base->width; i++ ) {
 		for ( unsigned int j = 0; j < _base->height; j++ ) {
@@ -158,7 +1063,7 @@ void copyBase ( FImage *_base ) {
 	}
 }
 
-void copySliver ( FImage *_sliver ) {
+void copySliver( FImage *_sliver ) {
 	sliver = new FImage( _sliver->width, _sliver->height, _sliver->metadata );
 	for ( unsigned int i = 0; i < _sliver->width; i++ ) {
 		for ( unsigned int j = 0; j < _sliver->height; j++ ) {
@@ -166,8 +1071,31 @@ void copySliver ( FImage *_sliver ) {
 		}
 	}
 }
-int simplex ( FImage *_base, FImage *_sliver, double input_vector[], double return_vector[], int n, double precision[], double alpha, double beta, double gamma,
-		double errhalt, int maxi ) {
+
+int simplex( FImage *_base, FImage *_sliver, double input_vector[], double return_vector[], bool _fastZ, double precision[], double alpha, double beta, double gamma,
+			 double errhalt, int maxi ) {
+
+	fastZ = _fastZ;
+	int n;
+	if ( fastZ ) {
+		n = 8;
+	}
+	else {
+		n = 12;
+	}
+
+	int i, j;
+	
+
+
+	double** simplex_matrix = new double*[ n + 1 ];
+	for ( i = 0; i < n + 1; ++i )	simplex_matrix[ i ] = new double[ n + 1 ];
+	double* fitnesses = new double[ n + 1 ];
+	double* vertex_reflection = new double[ n + 1 ];
+	double* vertex_expansion = new double[ n + 1 ];
+	double* centroid = new double[ n + 1 ];
+	double fitness_reflection, fitness_expansion, fitness_contraction;
+
 	printf( "Begin Simplex Routine!\n" );
 	copyBase( _base );
 	copySliver( _sliver );
@@ -177,30 +1105,47 @@ int simplex ( FImage *_base, FImage *_sliver, double input_vector[], double retu
 	basesize = new int[ 2 ];
 	basesize[ 0 ] = base->width;
 	basesize[ 1 ] = base->height;
-	double t0;
+
+#ifdef S_MODE_OPENCL
+	initializeOpenCLContext();
+#else
+	base_array = new double[ sliver->width * sliver->height ];
+	sliver_array = new double[ sliver->width * sliver->height ];
+	KRCs = new double[ sliver->width + sliver->height ];
+	RCs = new double[ sliver->width + sliver->height ];
+	#ifdef S_MODE_TBB
+	if ( !init.is_active() ) {
+		init.initialize();
+		printf( "TBB Thread Scheduler Initialized : %d Threads.\n", init.default_num_threads() );
+	}
+	else {
+		
+		printf( "TBB Thread Scheduler Already Exists : %d Threads.\n", init.default_num_threads() );
+	}
+	#endif
+#endif
+
 	//int ok;	Never used
-	int i, j, pass;
-	int max, min;
+	int iterations;
+	int max_index, min_index;
 	double c;
-	double ymax;
-	double ymin;
-	double err;
-	double meany;
-	double y_a;
+	double max_fitness;
+	double min_fitness;
+	double error;
+	double mean_fitness;
+	double next_max_fitness;
 
 	/***************************************************/
 	//fill the simplex
 	for ( i = 0; i < n; i++ ) {
 		simplex_matrix[ 0 ][ i ] = input_vector[ i ];
 	}
-	for ( i = n; i < VARS; i++ ) {
-		//				x_l[i]=0.0;
-		x_r[ i ] = 0.0;
-		//				x_a[i]=0.0;
-		//				x_j[i] = 0.0;
-		x_e[ i ] = 0.0;
+
+	for ( i = n; i < n + 1; i++ ) {
+		vertex_reflection[ i ] = 0.0;
+		vertex_expansion[ i ] = 0.0;
 		centroid[ i ] = 0.0;
-		fvals[ i ] = 0.0;
+		fitnesses[ i ] = 0.0;
 	}
 	/* fill in the remaining points of the initial Simplex            */
 	/* point no. k is the initial point displaced by 2x along coord k */
@@ -210,75 +1155,72 @@ int simplex ( FImage *_base, FImage *_sliver, double input_vector[], double retu
 			if ( ( j + 1 ) != i )
 				simplex_matrix[ i ][ j ] = simplex_matrix[ 0 ][ j ];
 			else {
-				t0 = simplex_matrix[ 0 ][ j ];
+				double temp = simplex_matrix[ 0 ][ j ];
 				//if(abs(t0) < TINY) t0 = 0.5 ;
-				simplex_matrix[ i ][ j ] = precision[ j ] + t0;
+				simplex_matrix[ i ][ j ] = precision[ j ] + temp;
 			}
 		}
 	}
 
 	/* go through all of the points of the Simplex & find max, min */
-	max = 0;
-	min = 0;
-	fvals[ 0 ] = myfunc( input_vector );
-	ymax = fvals[ 0 ];
-	ymin = ymax;
+	max_index = 0;
+	min_index = 0;
+	fitnesses[ 0 ] = determineFitness( input_vector );
+	max_fitness = fitnesses[ 0 ];
+	min_fitness = max_fitness;
 
-	//ymin = F_L, ymax = F_A
+	//min_fitness = F_L, max_fitness = F_A
 	for ( i = 1; i <= n; i++ ) {
 		for ( j = 0; j < n; j++ )
-			x_r[ j ] = simplex_matrix[ i ][ j ];
-		simplex_matrix[ i ][ 8 ] = 0;
-		fvals[ i ] = myfunc( x_r );
-		if ( fvals[ i ] >= ymax ) {
-			ymax = fvals[ i ];
-			//x_h[i]=ymax;
-			//		x_a[i] = fvals[max];
-			max = i;
+			vertex_reflection[ j ] = simplex_matrix[ i ][ j ];
+		fitnesses[ i ] = determineFitness( vertex_reflection );
+		if ( fitnesses[ i ] >= max_fitness ) {
+			max_fitness = fitnesses[ i ];
+			//x_h[i]=max_fitness;
+			//		x_a[i] = fitnesses[max_index];
+			max_index = i;
 		}
-		if ( fvals[ i ] < ymin ) {
-			ymin = fvals[ i ];
-			//					x_l[i]=ymax;
-			min = i;
+		if ( fitnesses[ i ] < min_fitness ) {
+			min_fitness = fitnesses[ i ];
+			//					x_l[i]=max_fitness;
+			min_index = i;
 		}
 	}
 	for ( j = 0; j < n; j++ ) {
 		centroid[ j ] = 0.00;
 		for ( i = 0; i <= n; i++ ) {
-			if ( i != max )
+			if ( i != max_index )
 				centroid[ j ] += simplex_matrix[ i ][ j ];
 		}
 		centroid[ j ] = centroid[ j ] / ( ( double ) n );
 	}
-	meany = 0.00;
+	mean_fitness = 0.00;
 	for ( i = 0; i <= n; i++ ) {
-		meany += fvals[ i ];
+		mean_fitness += fitnesses[ i ];
 	}
-	meany = meany / ( ( double ) ( n + 1 ) );
-	err = 0.00;
+	mean_fitness = mean_fitness / ( ( double ) ( n + 1 ) );
+	error = 0.00;
 	for ( i = 0; i <= n; i++ ) {
-		err += ( meany - fvals[ i ] ) * ( meany - fvals[ i ] );
+		error += ( mean_fitness - fitnesses[ i ] ) * ( mean_fitness - fitnesses[ i ] );
 	}
-	err = sqrt( err / ( ( double ) ( n + 1 ) ) );
-	pass = 0;
+	error = sqrt( error / ( ( double ) ( n + 1 ) ) ) / mean_fitness;
+	iterations = 0;
 
-	double myFuncResult = myfunc( return_vector );
-
-	while ( ( err >= errhalt ) && ( pass < maxi ) ) {
-		max = min = 0;
+	while ( ( error >= errhalt ) && ( iterations < maxi + 1 ) ) {
+		max_index = min_index = 0;
 		debug = false;
-		ymax = ymin = fvals[ 0 ];
+		max_fitness = min_fitness = fitnesses[ 0 ];
 		for ( i = 1; i <= n; i++ ) {
-			if ( fvals[ i ] >= ymax ) {
-				ymax = fvals[ i ];
+			if ( fitnesses[ i ] >= max_fitness ) {
+				max_fitness = fitnesses[ i ];
 				//get the second highest value
-				y_a = fvals[ max ];
-				max = i;
+				next_max_fitness = fitnesses[ max_index ];
+				max_index = i;
 			}
-			/*if(fvals[i] < ymin)*/
-			else {
-				ymin = fvals[ i ];
-				min = i;
+			/*if(fitnesses[i] < min_fitness)*/
+			else if ( fitnesses[ i ] < min_fitness ) {
+				min_fitness = fitnesses[ i ];
+				min_index = i;
 			}
 		}
 
@@ -286,22 +1228,26 @@ int simplex ( FImage *_base, FImage *_sliver, double input_vector[], double retu
 		for ( j = 0; j < n; j++ ) {
 			centroid[ j ] = 0.00;
 			for ( i = 0; i <= n; i++ ) {
-				if ( i != max )
+				if ( i != max_index )
 					centroid[ j ] += simplex_matrix[ i ][ j ];
 			}
-			centroid[ j ] /= /*centroid[j]/ */( ( double ) n );
+			centroid[ j ] /= ( ( double ) n );
 		}
 
-		if ( ( pass % ( PRINTEM ) ) == 0 ) {
-			printf( "%d\n", operations );
+		if ( ( iterations % ( PRINTEM ) ) == 0 ) {
+			printf( "ITERATION %4d    Best Fitness = %e\n", iterations, min_fitness );
+			printf( "%d Operations completed.\n", operations );
 			operations = 0;
-			printf( "\n ITERATION %4d     func = %20.12lf\n", pass, ymin );
-			printf( "%f %f %f %f \n", simplex_matrix[ min ][ 0 ], simplex_matrix[ min ][ 2 ], simplex_matrix[ min ][ 8 ], simplex_matrix[ min ][ 11 ] );
-			//for(j=0; j<n; j++) printf("    X(%3d) = %-10.3lf\n",
-			// for(j=0; j<n; j++) printf("    X(%3d) = %e\n",
-			//j, Simplex[min][j]);
+			printf( "Current Best Parameters : \n" );
+			printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 0 ], simplex_matrix[ min_index ][ 2 ], simplex_matrix[ min_index ][ 4 ], simplex_matrix[ min_index ][ 6 ] );
+			printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 1 ], simplex_matrix[ min_index ][ 3 ], simplex_matrix[ min_index ][ 5 ], simplex_matrix[ min_index ][ 7 ] );
+			// printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 8 ], simplex_matrix[ min_index ][ 9 ], simplex_matrix[ min_index ][ 10 ], simplex_matrix[ min_index ][ 11 ] );
+			for ( int i = 0; i < n + 1; ++i ) {
+				printf( "Fitness %d : %.30e\n", i, fitnesses[ i ] );
+			}
+			printf( "Average Fitness : %.30e\n", mean_fitness );
+			printf( "Deviation / Average : %.30e\n", error );
 			printf( "\n" );
-			//getchar();
 		}
 		/*new code*/
 		///*******************************************************///
@@ -310,83 +1256,82 @@ int simplex ( FImage *_base, FImage *_sliver, double input_vector[], double retu
 		//calculate the points of the reflected simplex
 		for ( i = 0; i < n; i++ ) {
 			c = centroid[ i ];
-			x_r[ i ] = c + alpha * ( c - simplex_matrix[ max ][ i ] );
+			vertex_reflection[ i ] = c + alpha * ( c - simplex_matrix[ max_index ][ i ] );
 		}
-		f_x_r = myfunc( x_r );
+		
+		fitness_reflection = determineFitness( vertex_reflection );
+		
 		//if the reflected simplex is decent, use it...but not if its very good.
 		//if the reflected simplex is very good, try an expansion
-		if ( ymin <= f_x_r && f_x_r < y_a ) {
+		if ( min_fitness <= fitness_reflection && fitness_reflection < next_max_fitness ) {
 			for ( i = 0; i < n; i++ ) {
-				simplex_matrix[ max ][ i ] = x_r[ i ];
+				simplex_matrix[ max_index ][ i ] = vertex_reflection[ i ];
 			}
 			for ( i = 0; i < n; i++ )
-				simplex_matrix[ max ][ i ] = x_r[ i ];
-			fvals[ max ] = f_x_r;
+				simplex_matrix[ max_index ][ i ] = vertex_reflection[ i ];
+			fitnesses[ max_index ] = fitness_reflection;
 			operations++;
 			//printf("R");
 			debug = true;
-			goto do_more;
 		}
 		///*******************************************************///
 		///************************greedy expansion***************///
 		///*********************non smooth function***************///
-		/*if(f_x_r < ymin){
-		 for(i=0; i<n; i++){
-		 c = centroid[i];
-		 x_e[i] = c + gamma*(x_r[i]-c);
-		 }
-		 f_x_e = myfunc(x_e);
-		 if(f_x_e < ymin){
-		 for(i =0; i<n; i++){Simplex[max][i]=x_e[i];}
-		 ymax = f_x_e ;
-		 printf("e");
-		 operations++;
-		 debug = true;
-		 goto do_more;
-		 }
-		 else{
-		 for(i =0; i<n; i++){Simplex[max][i]=x_r[i];}
-		 ymax = f_x_r ;
-		 printf("r");
-		 operations++;
-		 debug = true;
-		 goto do_more;
-		 }
-		 }*/
+		/*if(fitness_reflection < min_fitness){
+		for(i=0; i<n; i++){
+		c = centroid[i];
+		vertex_expansion[i] = c + gamma*(vertex_reflection[i]-c);
+		}
+		fitness_expansion = determineFitness(vertex_expansion);
+		if(fitness_expansion < min_fitness){
+		for(i =0; i<n; i++){Simplex[max_index][i]=vertex_expansion[i];}
+		max_fitness = fitness_expansion ;
+		printf("e");
+		operations++;
+		debug = true;
+		goto do_more;
+		}
+		else{
+		for(i =0; i<n; i++){Simplex[max_index][i]=vertex_reflection[i];}
+		max_fitness = fitness_reflection ;
+		printf("r");
+		operations++;
+		debug = true;
+		goto do_more;
+		}
+		}*/
 
 		///*******************************************************///
 		///*********************greedy minimization***************///
 		///************************smooth function****************///
 		//if the reflected point produced a simplex with a smaller value than the current minimum,
 		//check to see if an expansion produces an even better simplex
-		if ( f_x_r < ymin ) {		//never make this <= ~ Nathan
-			for ( int j = 0; j < n; j++ ) {
+		else if ( fitness_reflection < min_fitness ) {		//never make this <= ~ Nathan
+			for ( j = 0; j < n; j++ ) {
 				c = centroid[ j ];
-				x_e[ j ] = c + gamma * ( x_r[ j ] - c );
+				vertex_expansion[ j ] = c + gamma * ( vertex_reflection[ j ] - c );
 			}
-			f_x_e = myfunc( x_e );
+			fitness_expansion = determineFitness( vertex_expansion );
 			//if the expanded simplex is better, use it.
-			if ( f_x_e < f_x_r ) {
+			if ( fitness_expansion < fitness_reflection ) {
 				for ( i = 0; i < n; i++ ) {
-					simplex_matrix[ max ][ i ] = x_e[ i ];
+					simplex_matrix[ max_index ][ i ] = vertex_expansion[ i ];
 				}
-				ymax = f_x_e;
+				max_fitness = fitness_expansion;
 				//printf("e");
 				operations++;
 				debug = true;
-				goto do_more;
 			}
 			//if the expanded simplex isn't better, use the reflected simplex, this will keep the
 			//simplex smaller
-			if ( f_x_e >= f_x_r ) {
+			else if ( fitness_expansion >= fitness_reflection ) {
 				for ( i = 0; i < n; i++ ) {
-					simplex_matrix[ max ][ i ] = x_r[ i ];
+					simplex_matrix[ max_index ][ i ] = vertex_reflection[ i ];
 				}
-				ymax = f_x_r;
+				max_fitness = fitness_reflection;
 				//printf("r");
 				operations++;
 				debug = true;
-				goto do_more;
 			}
 		}
 		/*Nathan's Contraction and Shrink code to include both contraction cases*/
@@ -396,36 +1341,36 @@ int simplex ( FImage *_base, FImage *_sliver, double input_vector[], double retu
 		//try A contraction if the reflected value is greater than the second greatest value
 		//(which from the other situations it actually has to be...if statement might not be
 		//needed)
-		if ( f_x_r >= y_a ) {
-			//cout << "\nerror impending\nFXR: " << f_x_r << "\nFXA: " << y_a << "\nymax: " << ymax;
+		else if ( fitness_reflection >= next_max_fitness ) {
+			//cout << "\nerror impending\nFXR: " << fitness_reflection << "\nFXA: " << next_max_fitness << "\nymax: " << max_fitness;
 			bool le = true;
-			if ( f_x_r < ymax ) {
+			if ( fitness_reflection < max_fitness ) {
 				le = true;
 				for ( i = 0; i < n; i++ ) {
 					double c = centroid[ i ];
-					x_e[ i ] = c + ( beta * ( x_r[ i ] - c ) );
+					vertex_expansion[ i ] = c + ( beta * ( vertex_reflection[ i ] - c ) );
 				}
 			}
-			if ( f_x_r >= ymax ) {
+			if ( fitness_reflection >= max_fitness ) {
 				le = false;
 				for ( i = 0; i < n; i++ ) {
 					double c = centroid[ i ];
-					x_e[ i ] = c + ( beta * ( simplex_matrix[ max ][ i ] - c ) );
+					vertex_expansion[ i ] = c + ( beta * ( simplex_matrix[ max_index ][ i ] - c ) );
 				}
 			}
 
-			f_x_e = myfunc( x_e );
+			fitness_expansion = determineFitness( vertex_expansion );
 			if ( le == true ) {
-				if ( f_x_e <= f_x_r ) {
+				if ( fitness_expansion <= fitness_reflection ) {
 					//printf("c");
 					operations++;
 					debug = true;
 					//cout << "case1\n";
 					//getchar();
 					for ( i = 0; i < n; i++ ) {
-						simplex_matrix[ max ][ i ] = x_e[ i ];
-						fvals[ max ] = f_x_r;
-						ymax = f_x_r;
+						simplex_matrix[ max_index ][ i ] = vertex_expansion[ i ];
+						fitnesses[ max_index ] = fitness_reflection;
+						max_fitness = fitness_reflection;
 					}
 				}
 				else {
@@ -436,25 +1381,25 @@ int simplex ( FImage *_base, FImage *_sliver, double input_vector[], double retu
 					debug = true;
 					for ( i = 0; i <= n; i++ ) {
 						for ( j = 0; j < n; j++ ) {
-							simplex_matrix[ i ][ j ] = 0.5 * ( simplex_matrix[ i ][ j ] + simplex_matrix[ min ][ j ] );
-							x_r[ j ] = simplex_matrix[ i ][ j ];
+							simplex_matrix[ i ][ j ] = 0.5 * ( simplex_matrix[ i ][ j ] + simplex_matrix[ min_index ][ j ] );
+							vertex_reflection[ j ] = simplex_matrix[ i ][ j ];
 						}
-						f_x_r = myfunc( x_r );
-						fvals[ i ] = f_x_r;
+						fitness_reflection = determineFitness( vertex_reflection );
+						fitnesses[ i ] = fitness_reflection;
 					}
 				}
 			}
 			if ( le == false ) {
-				if ( f_x_e < ymax ) {
+				if ( fitness_expansion < max_fitness ) {
 					//printf("C");
 					operations++;
 					debug = true;
 					//cout << "case2\n";
 					//getchar();
 					for ( i = 0; i < n; i++ ) {
-						simplex_matrix[ max ][ i ] = x_e[ i ];
-						fvals[ max ] = f_x_e;
-						ymax = f_x_e;
+						simplex_matrix[ max_index ][ i ] = vertex_expansion[ i ];
+						fitnesses[ max_index ] = fitness_expansion;
+						max_fitness = fitness_expansion;
 					}
 				}
 				else {
@@ -465,11 +1410,11 @@ int simplex ( FImage *_base, FImage *_sliver, double input_vector[], double retu
 					debug = true;
 					for ( i = 0; i <= n; i++ ) {
 						for ( j = 0; j < n; j++ ) {
-							simplex_matrix[ i ][ j ] = 0.5 * ( simplex_matrix[ i ][ j ] + simplex_matrix[ min ][ j ] );
-							x_r[ j ] = simplex_matrix[ i ][ j ];
+							simplex_matrix[ i ][ j ] = 0.5 * ( simplex_matrix[ i ][ j ] + simplex_matrix[ min_index ][ j ] );
+							vertex_reflection[ j ] = simplex_matrix[ i ][ j ];
 						}
-						f_x_r = myfunc( x_r );
-						fvals[ i ] = f_x_r;
+						fitness_reflection = determineFitness( vertex_reflection );
+						fitnesses[ i ] = fitness_reflection;
 					}
 				}
 			}
@@ -479,50 +1424,83 @@ int simplex ( FImage *_base, FImage *_sliver, double input_vector[], double retu
 		/* compute the "standard error" of the Simplex */
 		/* which is the termination criterion for the  */
 		/* outermost (while) loop.                     */
-
-		do_more: meany = 0.00;
+		mean_fitness = 0.00;
 		for ( i = 0; i <= n; i++ )
-			meany += fvals[ i ];
-		meany /= /*meany /*/( ( double ) ( n + 1 ) );
-		err = 0.00;
+			mean_fitness += fitnesses[ i ];
+		mean_fitness /= ( ( double ) ( n + 1 ) );
+		error = 0.00;
 		for ( i = 0; i <= n; i++ )
-			err += ( meany - fvals[ i ] ) * ( meany - fvals[ i ] );
-		err = sqrt( err / ( ( double ) ( n + 1 ) ) );
+			error += ( mean_fitness - fitnesses[ i ] ) * ( mean_fitness - fitnesses[ i ] );
+		error = sqrt( error / ( ( double ) ( n + 1 ) ) ) / mean_fitness;
 		if ( debug == false ) {
-			std::cout << "\nfxc: " << f_x_c << "\nfxr: " << f_x_r << "\nymax: " << ymax << "\nymin: " << ymin << "\nfxe: " << f_x_e << "\ny_a: " << y_a << "\n";
+			printf( "\n" );
+			printf( "Reflection Fitness : %e\n", fitness_reflection );
+			printf( "Expansion Fitness : %e\n", fitness_expansion );
+			printf( "Best Fitness : %e\n", max_fitness );
+			printf( "Worst Fitness : %e\n", min_fitness );
+			printf( "Second Worst Fitness : %e\n", next_max_fitness );
 			getchar();
 		}
-		pass++;
+		iterations++;
 	} /* end of while loop */
 
-	/* find biggest and smallest values of myfunc */
-	max = 0;
-	min = 0;
-	ymax = fvals[ 0 ];
-	ymin = ymax;
+	/* find biggest and smallest values of determineFitness */
+	max_index = 0;
+	min_index = 0;
+	max_fitness = fitnesses[ 0 ];
+	min_fitness = max_fitness;
 	for ( i = 1; i <= n; i++ ) {
-		if ( fvals[ i ] >= ymax ) {
-			ymax = fvals[ i ];
-			max = i;
+		if ( fitnesses[ i ] >= max_fitness ) {
+			max_fitness = fitnesses[ i ];
+			max_index = i;
 		}
-		if ( fvals[ i ] < ymin ) {
-			ymin = fvals[ i ];
-			min = i;
+		if ( fitnesses[ i ] < min_fitness ) {
+			min_fitness = fitnesses[ i ];
+			min_index = i;
 		}
 	}
 
 	/* put the minimum point in the return vector z */
-	for ( i = 0; i < n; i++ )
-		return_vector[ i ] = simplex_matrix[ min ][ i ];
+	for ( i = 0; i < n; i++ ) {
+		return_vector[ i ] = simplex_matrix[ min_index ][ i ];
+	}
 
+	if ( fastZ ) {
+		fastZFitness( return_vector, true );
+	}
+
+	printf( "\n\nSimplex took %ld evaluations.\n", fitness_evals );
+	printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 0 ], simplex_matrix[ min_index ][ 2 ], simplex_matrix[ min_index ][ 4 ], simplex_matrix[ min_index ][ 6 ] );
+	printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 1 ], simplex_matrix[ min_index ][ 3 ], simplex_matrix[ min_index ][ 5 ], simplex_matrix[ min_index ][ 7 ] );
+
+
+#ifdef S_MODE_OPENCL
+	delete[] fitness_value;
+	delete clWarpSliverCubic;
+	delete clWarpBaseCubic;
+	delete clWarpSliverBspline;
+	delete clWarpBaseBspline;
+	delete clRCResults;
+	delete clPartialDifference;
+	delete clFinalDifference;
+	// delete clDifferenceCalculation;
+#else
+	delete[] base_array;
+	delete[] sliver_array;
+	delete[] KRCs;
+	delete[] RCs;
+#endif
+
+
+	for ( i = 0; i < n + 1; ++i )	delete[] simplex_matrix[ i ];
+	delete[] simplex_matrix;
+	delete[] fitnesses;
+	delete[] vertex_reflection;
+	delete[] vertex_expansion;
+	delete[] centroid;
 	delete[] basesize;
 	delete[] sliversize;
 	delete base;
 	delete sliver;
-	printf( "\n\nSIMPLEX took %ld evaluations; returned\n", function_evals );
-	printf( "%f %f %f %f %f \n", simplex_matrix[ min ][ 0 ], simplex_matrix[ min ][ 2 ], simplex_matrix[ min ][ 18 ], simplex_matrix[ min ][ 19 ],
-			simplex_matrix[ min ][ 16 ] );
-
-	return ( 1 );
+	return ( 0 );
 }
-/* end of Simplex() */
