@@ -1,17 +1,18 @@
+
 #define __MAIN_RUN__
-
-
 #define __OPENCL_TEST__
 
 
-
+/**
+ *	Calls Argo to perform its functionality.
+ */
 #ifdef __MAIN_RUN__
 	#undef __OPENCL_TEST__
 	#include <iostream>
 	#include "argo.h"
 
 	/**
-	* Main method for our program.
+	*	Main method for our program.
 	*/
 	int main( int argc, char *argv[] ) {
 		printf( "************ Running Argo Version " VERSION " ************\n" );
@@ -22,6 +23,10 @@
 	}
 #endif
 
+
+/**
+ *	For OpenCL testing purposes.
+ */
 #ifdef __OPENCL_TEST__
 
 #define _CRT_SECURE_NO_WARNINGS

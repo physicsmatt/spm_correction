@@ -4,6 +4,9 @@
 #include <iostream>
 #include <algorithm>
 
+/**
+ *	Initializes an FImage object with the provided metadata.
+ */
 FImage::FImage( Metadata _meta ) {
 	loaded = false;
 	data = 0;
@@ -14,16 +17,27 @@ FImage::FImage( Metadata _meta ) {
 	metadata.flipped = _meta.flipped;
 }
 
+/**
+ *	Initializes an FImage object given a filename.
+ */
 FImage::FImage ( std::string file ) {
+	loaded = false;
 	metadata.flipped = false;
 	load( file );
 }
 
+/**
+ *	Initializes an FImage object given a filename and a boolean indicator for reading the image either y-up or y-down.
+ */
 FImage::FImage( std::string file, bool _flipped ) {
+	loaded = false;
 	metadata.flipped = _flipped;
 	load( file );
 }
 
+/**
+ *	Initializes an FImage object given image dimensions and metadata.
+ */
 FImage::FImage ( unsigned int size_x, unsigned int size_y, Metadata _meta ) {
 	loaded = false;
 	width = size_x;
@@ -35,20 +49,27 @@ FImage::FImage ( unsigned int size_x, unsigned int size_y, Metadata _meta ) {
 	metadata.flipped = _meta.flipped;
 }
 
+/**
+ *	Destructor. Deletes any FImage data if necessary.
+ */
 FImage::~FImage () {
 	if ( data ) {
 		delete[] data;
 	}
 }
 
+/**
+ *	Given a filename, this method loads an image file into the FImage object.
+ */
 void FImage::load ( std::string file ) {
+	// Initialize FreeImage backend.
 	FreeImage_Initialise();
 	if ( loaded ) {
 		unload();
 	}
 	filename = file;
-	metadata.format = FreeImage_GetFileType( filename.c_str(), 0 );
-	FIBITMAP* img = FreeImage_Load( metadata.format, filename.c_str() );
+	metadata.format = FreeImage_GetFileType( filename.c_str(), 0 );	// Get file information.
+	FIBITMAP* img = FreeImage_Load( metadata.format, filename.c_str() );	// Load the image.
 	if ( !img ) {
 		printf( "Error loading file: %s.\n", filename.c_str() );
 		return;
@@ -59,26 +80,21 @@ void FImage::load ( std::string file ) {
 		return;
 	}
 
-	// color types:
-	// 'uint8   : one channel 8 bit int
-	// 'uint16  : one channel 16 bit int
-	// 'float32 : one channel 32 bit float
-	// 'rgb     : 24 bit rgb color
-	// 'rgba    : 32 bit rgba color
-	// 'rgb32f  : 3 x 32 bit float color  
-	// 'rgba32f : 4 x 32 bit float color  
-	metadata.type = FreeImage_GetImageType( img );
+	metadata.type = FreeImage_GetImageType( img );	// Get image information.
 	unsigned int bpp = FreeImage_GetBPP( img );
 
-	width = FreeImage_GetWidth( img );
+	width = FreeImage_GetWidth( img );	// Image dimensions.
 	height = FreeImage_GetHeight( img );
 	unsigned int pixels = width * height;
 
 	loaded = true;
-	if ( metadata.flipped ) {
+	if ( metadata.flipped ) {	// Y-up or Y-down boolean indicator specifies to flip the image.
 		FreeImage_FlipVertical( img );
 	}
 
+	/**
+	 * Convert image data into double-precision data and store into an array.
+	 */
 	switch ( metadata.type ) {
 		double* _data;
 	case FIT_BITMAP:
@@ -143,10 +159,14 @@ void FImage::load ( std::string file ) {
 		loaded = false;
 		break;
 	}
-	FreeImage_Unload( img );
-	FreeImage_DeInitialise();
+
+	FreeImage_Unload( img );	// Unload the image.
+	FreeImage_DeInitialise();	// DeInitialize the FreeImage backend. ( Need to change this to use a singleton-pattern like approach )
 }
 
+/**
+ *	Delete all pixel data. Does not destroy the object.
+ */
 void FImage::unload () {
 	if ( data ) {
 		delete[] data;
@@ -155,6 +175,9 @@ void FImage::unload () {
 	loaded = false;
 }
 
+/**
+ *	Initializes an FImage object that has not been initialized. ( Need to refactor )
+ */
 void FImage::initialize ( unsigned int size_x, unsigned int size_y, Metadata _meta ) {
 	width = size_x;
 	height = size_y;
@@ -165,6 +188,9 @@ void FImage::initialize ( unsigned int size_x, unsigned int size_y, Metadata _me
 	metadata.flipped = _meta.flipped;
 }
 
+/**
+ *	Gets pixel value.
+ */
 double FImage::get ( int x, int y ) const {
 	if ( x >= 0 && x < width && y >= 0 && y < height ) {
 		return ( fastGet( x, y ) );
@@ -173,11 +199,17 @@ double FImage::get ( int x, int y ) const {
 	return ( 0 );
 }
 
+/**
+ *	Sets the pixel value.
+ */
 void FImage::set ( int x, int y, double value ) {
 	if ( x >= 0 && x < width && y >= 0 && y < height )
 		fastSet( x, y, value );
 }
 
+/**
+ *	Gets the range of the pixel values.
+ */
 double FImage::getRange() {
 	double* temp = new double[ width * height ];
 	std::copy(data, data + width * height, temp);
@@ -190,6 +222,9 @@ double FImage::getRange() {
 	return ( max - min );
 }
 
+/**
+ *	Gets the minimum pixel value.
+ */
 double FImage::getMin() {
 	double* temp = new double[ width * height ];
 	std::copy( data, data + width * height, temp );
@@ -201,6 +236,9 @@ double FImage::getMin() {
 	return ( min );
 }
 
+/**
+ *	Gets the maximum pixel value.
+ */
 double FImage::getMax() {
 	double* temp = new double[ width * height ];
 	std::copy( data, data + width * height, temp );
@@ -210,6 +248,9 @@ double FImage::getMax() {
 	return ( max );
 }
 
+/**
+ *	Writes the image to the given filename.
+ */
 bool FImage::writeImage ( std::string file ) {
 	FreeImage_Initialise();
 	FIBITMAP *image = FreeImage_AllocateT( metadata.type, width, height );
@@ -281,6 +322,10 @@ bool FImage::writeImage ( std::string file ) {
 	return ( true );
 }
 
+/**
+ *	Writes a viewable image. This is useful for images with floating point values that cannot be viewed. We simply
+ *	take all the values and alter their range to [0,1] such that they can be viewable as floating point grayscale.
+ */
 bool FImage::writeDisplayableImage( std::string file, double slope, double min ) {
 	FreeImage_Initialise();
 	FIBITMAP *image = FreeImage_AllocateT( FIT_FLOAT, width, height );
@@ -313,6 +358,13 @@ bool FImage::writeDisplayableImage( std::string file, double slope, double min )
 	return ( true );
 }
 
+/**
+ *	Interpolate a pixel value given the type. Checks bounds to see if interpolation is possible. Returns Bilinear otherwise.
+ *	
+ *	@param	x	coordinate.
+ *	@param	y	coordinate.
+ *	@return		pixel value.
+ */
 double FImage::interpPixel( double x, double y, unsigned int type ) {
 	switch ( type ) {
 		case F_BILINEAR:
@@ -333,12 +385,13 @@ double FImage::interpPixel( double x, double y, unsigned int type ) {
 }
 
 /**
-* Returns pixel value from double x,y by bilerping. Has more precision and similar runtime as interp_pixel_float.
-* @param baseImage pointer to image
-* @param x coordinate
-* @param y coordinate
-* @return pixel value as double
-*/
+ *	Returns pixel value from double x,y by bilerping. Has more precision and similar runtime as interp_pixel_float.
+ *	@param baseImage pointer to image
+ *
+ *	@param	x	coordinate.
+ *	@param	y	coordinate.
+ *	@return		pixel value.
+ */
 double FImage::bilinear( double x, double y ) {
 	double s, t;
 	double left_val, right_val;
@@ -376,10 +429,24 @@ double FImage::bilinear( double x, double y ) {
 	return ( t * bottom_val + ( 1 - t ) * top_val );
 }
 
+/**
+ *	Returns a nearest neighbor interpolated pixel value.
+ *
+ *	@param	x	coordinate.
+ *	@param	y	coordinate.
+ *	@return		pixel value.
+ */
 double FImage::nearestNeighbor( double x, double y ) {
 	return fastGet( round( x ), round( y ) );
 }
 
+/**
+ *	Returns a bicubic interpolated pixel value.
+ *
+ *	@param	x	coordinate.
+ *	@param	y	coordinate.
+ *	@return		pixel value.
+ */
 double FImage::cubic( double x, double y ) {
 	double A = -0.5;
 	double sx[ 4 ]; // these are the distances for each row
@@ -430,6 +497,14 @@ double FImage::cubic( double x, double y ) {
 	return sum;
 }
 
+/**
+ *	Returns a b-spline interpolated pixel value. Given the parameters, the type of interpolation can change from normal b-spline,
+ *	Catmull-Rom spline as well as Mitchell-Netravali spline
+ *
+ *	@param	x	coordinate.
+ *	@param	y	coordinate.
+ *	@return		pixel value.
+ */
 double FImage::bspline( double x, double y, int type ) {
 	double B = 0;
 	double C = 0;
@@ -499,6 +574,15 @@ double FImage::bspline( double x, double y, int type ) {
 	return sum;
 }
 
+/**
+*	Based upon given parameter values, the sliver image is warped.
+*
+*	@param	_warped	The FImage object to store the warped sliver into.
+*	@param	aterms	A parameter values
+*	@param	bterms	B parameter values
+*	@param	cterms	C parameter values
+*	@param	interp_type	The interpolation type to use for warping the image.
+*/
 void FImage::warpSliver( FImage* _warped, double aterms[], double bterms[], double cterms[], int interp_type ) {
 	int x = 0;
 	int y = 0;
@@ -526,13 +610,15 @@ void FImage::warpSliver( FImage* _warped, double aterms[], double bterms[], doub
 }
 
 /**
-* Based upon given parameter values, the base image is warped.
-*
-* @param aterms A parameter values
-* @param bterms B parameter values
-* @param cterms C parameter values
-* @param dominantAxis Determines which axis (x or y) to apply the warping to.
-*/
+ *	Based upon given parameter values, the base image is warped.
+ *
+ *	@param	_warped	The FImage object to store the warped base into.
+ *	@param	aterms	A parameter values
+ *	@param	bterms	B parameter values
+ *	@param	cterms	C parameter values
+ *	@param	dominantAxis	Determines which axis (x or y) to apply the warping to.
+ *	@param	interp_type	The interpolation type to use for warping the image.
+ */
 void FImage::warpBase( FImage* _warped, double aterms[], double bterms[], double cterms[], int dominant_axis, int interp_type ) {
 	int x;
 	int y;
@@ -581,11 +667,10 @@ void FImage::warpBase( FImage* _warped, double aterms[], double bterms[], double
 }
 
 /**
-* This function down-samples an image by an integer factor.
-* Assumes values of images are integers
-* This is NOT a particularly fast function.
-* @param factor
-*/
+ *	This function down-samples an image by an integer factor.
+ *
+ *	@param	factor	The factor to downscale by.
+ */
 void FImage::resample( FImage* resamp, int factor ) {
 	
 	unsigned int rx_size = width / factor;

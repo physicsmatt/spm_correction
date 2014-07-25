@@ -13,11 +13,11 @@
 
 
 /**
- * Returns < for param_combo based upon comparisons of P1, P2, and P3 with priorities in that order.
+ *	Returns < for param_combo based upon comparisons of P1, P2, and P3 with priorities in that order.
  *
- * @param a
- * @param b
- * @return The smaller param_combo.
+ *	@param a
+ *	@param b
+ *	@return The smaller param_combo.
  */
 bool operator< ( const param_combo& a, const param_combo& b ) {
 	if ( a.P1 != b.P1 )
@@ -29,11 +29,11 @@ bool operator< ( const param_combo& a, const param_combo& b ) {
 }
 
 /**
- * Returns > for param_combo based upon comparisons of P1, P2, and P3 with priorities in that order.
+ *	Returns > for param_combo based upon comparisons of P1, P2, and P3 with priorities in that order.
  *
- * @param a
- * @param b
- * @return The larger param_combo
+ *	@param a
+ *	@param b
+ *	@return The larger param_combo
  */
 bool operator> ( const param_combo& a, const param_combo& b ) {
 	if ( a.P1 != b.P1 )
@@ -45,11 +45,11 @@ bool operator> ( const param_combo& a, const param_combo& b ) {
 }
 
 /**
- * Returns <= for param_combo based upon comparisons of P1, P2, and P3 with priorities in that order.
+ *	Returns <= for param_combo based upon comparisons of P1, P2, and P3 with priorities in that order.
  *
- * @param a
- * @param b
- * @return The smaller param_combo if different.
+ *	@param a
+ *	@param b
+ *	@return The smaller param_combo if different.
  */
 bool operator<= ( const param_combo& a, const param_combo& b ) {
 	if ( a.P1 != b.P1 )
@@ -61,11 +61,11 @@ bool operator<= ( const param_combo& a, const param_combo& b ) {
 }
 
 /**
- * Returns >= for param_combo based upon comparisons of P1, P2, and P3 with priorities in that order.
+ *	Returns >= for param_combo based upon comparisons of P1, P2, and P3 with priorities in that order.
  *
- * @param a
- * @param b
- * @return The larger param_combo if different.
+ *	@param a
+ *	@param b
+ *	@return The larger param_combo if different.
  */
 bool operator>= ( const param_combo& a, const param_combo& b ) {
 	if ( a.P1 != b.P1 )
@@ -76,6 +76,9 @@ bool operator>= ( const param_combo& a, const param_combo& b ) {
 		return ( a.P3 >= b.P3 );
 }
 
+/**
+ *	Constructor. Initializes default program values.
+ */
 argo::argo () {
 	blocksize = 0;
 	A0_max = 5, B0_max = 5;
@@ -85,9 +88,9 @@ argo::argo () {
 	precision = 1;
 
 	/**
-	 * These parameters were found, using trial and error on not a whole lot of different test cases.
-	 * To avoid being trapped in some rut, it seems to be VERY important to have the reflection
-	 * parameter slightly less than 1.0, and the growth parameter less than 2.0.
+	 *	These parameters were found, using trial and error on not a whole lot of different test cases.
+	 *	To avoid being trapped in some rut, it seems to be VERY important to have the reflection
+	 *	parameter slightly less than 1.0, and the growth parameter less than 2.0.
 	 */
 	simplex_growth = 1.5, simplex_contract = 0.5, simplex_reflect = 0.9, simplex_halt = 0;
 	simplex_iterations = 5000;
@@ -99,6 +102,9 @@ argo::argo () {
 	images_store.flipped = 0;
 }
 
+/**
+ *	Destructor. Deletes any allocations that had taken place.
+ */
 argo::~argo () {
 	if ( beta_gamma_store.difflets ) {
 		delete[] beta_gamma_store.difflets;
@@ -126,6 +132,9 @@ argo::~argo () {
 	}
 }
 
+/**
+ *	Log to screen the input parameters.
+ */
 void argo::logInputParams () {
 	printf( "******** Input Parameters ********\n" );
 	printf( "Input Max A0 : \t %d\n", A0_max );
@@ -147,6 +156,9 @@ void argo::logInputParams () {
 	printf( "\n" );
 }
 
+/**
+ *	Log to screen the calculated parameters.
+ */
 void argo::logCalculatedParams () {
 	printf( "******** Calculated Parameters ********\n" );
 	printf( "a1 Max : %f, a1 Step Size : %f, a1 Steps : %f\n", a1_max, a1_step, a1_max / a1_step );
@@ -163,10 +175,9 @@ void argo::logCalculatedParams () {
 	printf( "\n" );
 }
 
-void argo::logComboInfo () {
-
-}
-
+/**
+ *	Log to screen the beta gamma diffs information.
+ */
 void argo::logBetaGammaInfo () {
 	printf( "Number of Blocks : \t %d\n", numblocks );
 	printf( "Number of Blocklets : \t %d\n", num_sliver_blocks );
@@ -176,6 +187,9 @@ void argo::logBetaGammaInfo () {
 	printf( "\n" );
 }
 
+/**
+ *	Log to screen information about the current best value grid-search has computed.
+ */
 void argo::logCurrentBest () {
 	printf( "\n" );
 	printf( "BEST: %e   COUNT: %I64u\n", results.bestdiff, results.count );
@@ -185,6 +199,9 @@ void argo::logCurrentBest () {
 	printf( "\n" );
 }
 
+/**
+ *	Log to screen the final information from grid-search.
+ */
 void argo::logGridSearchInfo () {
 	printf( "******** Finished Grid Search ********\n" );
 	printf( "Time for Diffs : \t %f \n", times.diffs_time );
@@ -196,6 +213,9 @@ void argo::logGridSearchInfo () {
 	printf( "\n" );
 }
 
+/**
+ *	Log to screen the final information for Simplex.
+ */
 void argo::logSimplexRoutineInfo () {
 	printf( "******** Finished Simplex Routine ********\n" );
 	printf( "Drift Coefficients :\n" );
@@ -212,6 +232,9 @@ void argo::logSimplexRoutineInfo () {
 	printf( "\n" );
 }
 
+/**
+ *	Log to file both grid-search and simplex information.
+ */
 void argo::logProgramInformation () {
 	FILE *paramfile = fopen( "output.txt", "w" );
 
@@ -248,6 +271,11 @@ void argo::logProgramInformation () {
 	}
 }
 
+/**
+*	Read in image files.
+*	
+*	@param	verbose	Boolean flag to print debug info.
+*/
 void argo::readImages ( bool verbose ) {
 	// Read image files and resample based upon provided precision.
 	if ( verbose ) {
@@ -277,6 +305,12 @@ void argo::readImages ( bool verbose ) {
 	rsliver_height = images_store.resamp_sliver->height;
 }
 
+/**
+ *	Reads and parses a string of values. This is for command-line argo invocation.
+ *
+ *	@param	argc	The number of arguments.
+ *	@param	argv	The arguments.
+ */
 void argo::readInputParams ( int argc, char *argv[] ) {
 
 	//perror("Error: Usage is ImageMaster -i: ImagePath -s: SliverPath -A0: value -A1: value -A2: value -B0: value -B1: value -B2: value -p: precision -b: blocksize -g: growth -c: contract -r: reflection\n");
@@ -359,6 +393,9 @@ void argo::readInputParams ( int argc, char *argv[] ) {
 	}
 }
 
+/**
+ *	Initialize parameters that will be necessary for further grid-search functioning.
+ */
 void argo::initCalculatedParams () {
 	// Set precision adjusted MaxA0 and MaxB0.
 	A0_max = ( int ) ceil( ( float ) A0_max / ( float ) precision );
@@ -420,8 +457,8 @@ void argo::initCalculatedParams () {
 }
 
 /**
- * We use Matt's trick here of getting a list of indexes here, even though we have to use a for loop.  Pre-calculating the positions IS faster,
- * and Matt's trick precomputes as much as possible.
+ *	We use Matt's trick here of getting a list of indexes here, even though we have to use a for loop.  Pre-calculating the positions IS faster,
+ *	and Matt's trick precomputes as much as possible.
  */
 void argo::initCombos () {
 	// Make lists of all vaues of A1,A2,A3, B1,B2,B3 to try
@@ -462,6 +499,9 @@ void argo::initCombos () {
 	std::sort( combos.B_combos, combos.B_combos + B_combos_size );
 }
 
+/**
+ *	Initialize the difflets (gamma values) which will later be used to generate beta values.
+ */
 void argo::initBetaGamma()	{
 	// Initialize array for dynamic_diffs once.
 	beta_gamma_store.dynamic_diffs = new beta_values[dyn_diffs_size];
@@ -529,6 +569,13 @@ void argo::initBetaGamma()	{
 	} //end for sb
 }
 
+/**
+ *	The bulk of grid-search calculations. Given index values, we generate appropriate beta
+ *	values using the pre-computed gammas. We then go through our combos range and perform
+ *	a matrix multiply to generate C parameters and calculate the final difference.
+ *
+ *	@param	verbose	Boolean flag indicating whether to display debugging information.
+ */
 void argo::performGridSearch(bool verbose)	{
 
 	double * yb_arr = new double[numblocks];
@@ -764,6 +811,10 @@ void argo::performGridSearch(bool verbose)	{
 	delete[] yb6_arr;
 }
 
+/**
+ *	Makes the call to simplex, taking in all values calculated by grid-search previously and passing them over along with
+ *	corresponding precision values to help simplex function properly.
+ */
 void argo::performSimplexRoutine () {
 	results.bestC1 /= precision;
 	results.bestC2 /= precision * precision;
@@ -808,6 +859,9 @@ void argo::performSimplexRoutine () {
 			simplex_halt, simplex_iterations );
 }
 
+/**
+ *	Performs final warping and outputting of images as files.
+ */
 void argo::performImageCorrection () {
 	// Perform final warp, and write the output tiff
 	double aterms[ 4 ] = { simplex_best[ 0 ], simplex_best[ 2 ], simplex_best[ 4 ], simplex_best[ 6 ] };
@@ -825,52 +879,18 @@ void argo::performImageCorrection () {
 	delete final;
 }
 
-void argo::correctImages () {
-
-}
-
-void argo::correctImages ( bool verbose ) {
-
-}
-
+/**
+ * Non-debugging versions of argo execution.
+ */
 void argo::correctImages ( int argc, char* argv[] ) {
-	clock_t begintime = clock();
-	clock_t time0, time1;
-
-	time0 = clock();
 	readInputParams( argc, argv );
 	readImages( false );
 	initCalculatedParams();
-	time1 = clock();
-	times.image_read_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
-
-	time0 = clock();
 	initCombos();
-	time1 = clock();
-	times.combos_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
-
-	time0 = clock();
 	initBetaGamma();
-	time1 = clock();
-	times.diffs_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
-
-	time0 = clock();
 	performGridSearch( false );
-	time1 = clock();
-	times.grid_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
-
-	time0 = clock();
 	performSimplexRoutine();
-	time1 = clock();
-	times.simplex_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
-
-	time0 = clock();
 	performImageCorrection();
-	time1 = clock();
-	times.image_write_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
-
-	clock_t endtime = clock();
-	times.total_time = ( ( double ) endtime - ( double ) begintime ) / CLOCKS_PER_SEC;
 }
 
 void argo::correctImages ( int argc, char* argv[], bool verbose ) {
@@ -905,7 +925,6 @@ void argo::correctImages ( int argc, char* argv[], bool verbose ) {
 
 	if ( verbose ) {
 		logCalculatedParams();
-		logComboInfo();
 		logBetaGammaInfo();
 	}
 

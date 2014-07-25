@@ -44,6 +44,8 @@ FImage *sliver;
 int *basesize;
 int *sliversize;
 
+
+// Declare all necessary OpenCL devices, contexts, queues, buffers, kernels, etc.
 #ifdef S_MODE_OPENCL
 unsigned int nextPow2( unsigned int x ) {
 	--x;
@@ -116,7 +118,10 @@ cl::LocalSpaceArg locals;
 double* fitness_value;
 
 
-
+/**
+ *
+ *
+ */
 void initializeOpenCLContext() {
 	double* double_sliv = new double[ sliver->width * sliver->height ];
 	double* double_base = new double[ base->width * base->height ];
@@ -273,7 +278,16 @@ void initializeOpenCLContext() {
 	#endif
 #endif
 
+/**
+ *	Performs fastZ correction.
+ *
+ *	@param	vertex	An array containing parameter values to apply to the image.
+ *	@param	writeFile	A flag indicating whether to output data to an image. Useful for the last iteration.
+ *	
+ *	@return	A double precision difference value of the image.
+ */
 double fastZFitness( double vertex[], bool writeFile ) {
+	// Precomputation of bounds and weights necessary.
 	double As[ 4 ] = { vertex[ 0 ], vertex[ 2 ], vertex[ 4 ], vertex[ 6 ] };
 	double Bs[ 4 ] = { vertex[ 1 ], vertex[ 3 ], vertex[ 5 ], vertex[ 7 ] };
 
@@ -383,7 +397,10 @@ double fastZFitness( double vertex[], bool writeFile ) {
 	double inv_m = 1 / ( double ) m;
 	double inv_mn = 1 / ( double ) ( m * n );
 
+	// OpenCL mode of FastZ correction.
 #ifdef S_MODE_OPENCL
+
+	// Initialize NDRange arguments.
 	// Find largest power of 2 the dimensions fit into
 	int dimX = maxX + 1;
 	int dimY = maxY - minY + 1;
@@ -424,6 +441,7 @@ double fastZFitness( double vertex[], bool writeFile ) {
 	// cl::EnqueueArgs range_final_args( queue, cl::NullRange, cl::NDRange( final_size ), cl::NDRange( final_size ) );
 
 
+	// Kernel calls.
 	clWarpSliverCubic->operator()( range_sliver_args, cl_sliver, cl_sliver_interp,
 					   ( double ) As[ 1 ], ( double ) Bs[ 1 ],
 					   ( int ) sliver->width, ( int ) sliver->height,
@@ -478,10 +496,10 @@ double fastZFitness( double vertex[], bool writeFile ) {
 
 	return fitness_value[ 0 ];
 
-#else
+#else	// Non-OpenCL (Intel's Thread Building Blocks and sequential) versions of fastZ correction
 
 
-
+	// Bicubic sliver warping
 #ifdef S_MODE_TBB
 	tbb::parallel_for( 0, maxX + 1, 1, [&]( int x )	{
 #elif defined( S_MODE_SEQUENTIAL )
@@ -549,6 +567,7 @@ double fastZFitness( double vertex[], bool writeFile ) {
 	);
 #endif
 
+	// Bicubic base warping.
 #ifdef S_MODE_TBB
 	tbb::parallel_for( minY, maxY + 1, 1, [&]( int y )	{
 #elif defined( S_MODE_SEQUENTIAL )
@@ -697,7 +716,7 @@ double fastZFitness( double vertex[], bool writeFile ) {
 	);
 #endif
 
-
+	// RC Sums.
 #ifdef S_MODE_TBB
 	tbb::parallel_for( m, size + 1, 1, [&]( int i ) {
 #elif defined( S_MODE_SEQUENTIAL )
@@ -709,7 +728,7 @@ double fastZFitness( double vertex[], bool writeFile ) {
 	);
 #endif
 
-
+	// B-Spline sliver warping.
 #ifdef S_MODE_TBB
 	tbb::parallel_for( 0, maxX + 1, 1, [&]( int x )	{
 #elif defined( S_MODE_SEQUENTIAL )
@@ -779,6 +798,7 @@ double fastZFitness( double vertex[], bool writeFile ) {
 	);
 #endif
 
+	// B-Spline base warping.
 #ifdef S_MODE_TBB
 	tbb::parallel_for( minY, maxY + 1, 1, [&]( int y )	{
 #elif defined( S_MODE_SEQUENTIAL )
@@ -848,6 +868,7 @@ double fastZFitness( double vertex[], bool writeFile ) {
 	);
 #endif
 
+	// Sum of Differences and weights computation.
 	double sum = 0;
 	double area = 0;
 	double sum_error = 0;
@@ -894,8 +915,10 @@ double fastZFitness( double vertex[], bool writeFile ) {
 	);
 #endif
 
+	// If we are at the end of the program, ouput data to files.
 	if ( writeFile ) {
 		std::ofstream output;
+		// Debugging info.
 		output.open( "matrix.txt", std::ios::out );
 		if ( output.is_open() ) {
 			output << "MinY : " << minY << "\t MaxY : " << maxY << "\t MaxX : " << maxX << "\n";
@@ -920,11 +943,13 @@ double fastZFitness( double vertex[], bool writeFile ) {
 
 		double Cs[ 4 ] = { 0, 0, 0, 0 };
 
+		// Warp images.
 		FImage *warp_base = new FImage( base->width, base->height, base->metadata );
 		FImage *warp_sliver = new FImage( sliver->width, sliver->height, sliver->metadata );
 		base->warpBase ( warp_base, As, Bs, Cs, 1, S_WRITE_INTERP );
 		sliver->warpSliver ( warp_sliver, As, Bs, Cs, S_WRITE_INTERP );
 
+		// Apply RC Values.
 		for ( int i = 1; i <= maxX; i++ ) {
 			double z_change = RCs[ i - 1 ];
 			for ( int j = 0; j < warp_sliver->height; ++j ) {
@@ -932,7 +957,6 @@ double fastZFitness( double vertex[], bool writeFile ) {
 				warp_sliver->fastSet( i, j, warp_sliver->fastGet( i, j ) + z_change );
 			}
 		}
-
 		for ( int j = minY; j <= maxY; ++j ) {
 			double z_change = RCs[ maxX + j - minY ];
 			for ( int i = 0; i < warp_base->width; i++ ) {
@@ -949,8 +973,11 @@ double fastZFitness( double vertex[], bool writeFile ) {
 		double max_val = base_max < sliver_max ? base_max : sliver_max;
 		double slope = 1 / ( max_val - min_val );
 
+		// Write warped and corrected images.
 		warp_base->writeImage( "w_base.tif" );
 		warp_sliver->writeImage( "w_sliver.tif" );
+
+		// Write viewable images.
 		warp_base->writeDisplayableImage( "dw_base.tif", slope, min_val );
 		warp_sliver->writeDisplayableImage( "dw_sliver.tif", slope, min_val );
 
@@ -964,21 +991,22 @@ double fastZFitness( double vertex[], bool writeFile ) {
 
 }
 
-/*This is the function that is minimized by simplex.  What it does, conceptually, is similar to performing a
-polynomial warp on BOTH the base image and the sliver, taking the sum of differences squared between them (normalized
-by area), and returning that.  In fact what it does is a little faster and more efficient.
-
-First, it "warps" the sliver by calculating, for each point in the sliver, where that point would end up,
-IF the transformation were done in reverse.  Here the sliver points (xs, ys) are transformed to (xsp, ysp),
-for "prime".  It takes only the liniar portion for this transformation.
-
-Then, it "warps" the base image by doing the full 3rd order polynomial warp on (xsp,ysp) to yield (xspp, yspp).
-The actual value is gotten from the main image by interpolation.
-
-I tried writing this function using floats (instead of doubles) for some of the x and y coordinates, and found
-that the answer never converged beyond about 8 decimal places.  Plus, using floats instead of doubles didn't ACTUALLY
-make it ANY faster.  So doubles it is.
-*/
+/**
+ *	This is the function that is minimized by simplex.  What it does, conceptually, is similar to performing a
+ *	polynomial warp on BOTH the base image and the sliver, taking the sum of differences squared between them (normalized
+ *	by area), and returning that.  In fact what it does is a little faster and more efficient.
+ *
+ *	First, it "warps" the sliver by calculating, for each point in the sliver, where that point would end up,
+ *	IF the transformation were done in reverse.  Here the sliver points (xs, ys) are transformed to (xsp, ysp),
+ *	for "prime".  It takes only the liniar portion for this transformation.
+ *
+ *	Then, it "warps" the base image by doing the full 3rd order polynomial warp on (xsp,ysp) to yield (xspp, yspp).
+ *	The actual value is gotten from the main image by interpolation.
+ *
+ *	I tried writing this function using floats (instead of doubles) for some of the x and y coordinates, and found
+ *	that the answer never converged beyond about 8 decimal places.  Plus, using floats instead of doubles didn't ACTUALLY
+ *	make it ANY faster.  So doubles it is.
+ */
 double slowZFitness( double vertex[] ) {
 	fitness_evals++;  //increment global variable used to count function evaluations
 
@@ -1046,6 +1074,12 @@ double slowZFitness( double vertex[] ) {
 	return ( sum / area );
 }
 
+/**
+ *	Apply fast or slow Z correction depending upon global flag set.
+ *	
+ *	@param	vertex	An array storing parameter values.
+ *	@return		The calculated fitness.
+ */
 double determineFitness( double vertex[] ) {
 	fitness_evals++;  //increment global variable used to count function evaluations
 	if ( fastZ )
@@ -1054,6 +1088,11 @@ double determineFitness( double vertex[] ) {
 		return slowZFitness( vertex );
 }
 
+/**
+ *	Make a copy of the base.
+ *
+ *	@param	_base	The FImage object to copy.
+ */
 void copyBase( FImage *_base ) {
 	base = new FImage( _base->width, _base->height, _base->metadata );
 	for ( unsigned int i = 0; i < _base->width; i++ ) {
@@ -1063,6 +1102,11 @@ void copyBase( FImage *_base ) {
 	}
 }
 
+/**
+ *	Make a copy of the sliver.
+ *
+ *	@param	_sliver	The FImage object to copy.
+ */
 void copySliver( FImage *_sliver ) {
 	sliver = new FImage( _sliver->width, _sliver->height, _sliver->metadata );
 	for ( unsigned int i = 0; i < _sliver->width; i++ ) {
@@ -1072,6 +1116,26 @@ void copySliver( FImage *_sliver ) {
 	}
 }
 
+/**
+ *	Performs the simplex routine. FImage files are inputted as well as a starting vector which the simplex is trying to refine. We determine
+ *	what type of Z correction is being made with the _fastZ boolean flag. Depending upon the type of correction, either 8 parameters will be
+*	optimized or else 12 parameters will be optimized. Various simplex parameters are provided as well for reflection, contraction
+ *	etc.
+ *
+ *	@param	_base	Input base image.
+ *	@param	_sliver	Input sliver image.
+ *	@param	input_vector	Original parameter values usually given by grid-search.
+ *	@param	return_vector	An array the size of input_vector to store the final calculated values.
+ *	@param	_fastZ	Boolean indicator that determines if we perform fast Z or slow Z correction.
+ *	@param	precision
+ *	@param	alpha
+ *	@param	beta
+ *	@param	gamma
+ *	@param	errhalt
+ *	@param	maxi
+ *
+ *	@return		0 if success
+ */
 int simplex( FImage *_base, FImage *_sliver, double input_vector[], double return_vector[], bool _fastZ, double precision[], double alpha, double beta, double gamma,
 			 double errhalt, int maxi ) {
 
@@ -1490,8 +1554,6 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	delete[] KRCs;
 	delete[] RCs;
 #endif
-
-
 	for ( i = 0; i < n + 1; ++i )	delete[] simplex_matrix[ i ];
 	delete[] simplex_matrix;
 	delete[] fitnesses;
