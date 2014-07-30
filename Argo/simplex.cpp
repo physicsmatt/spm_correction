@@ -494,7 +494,55 @@ double fastZFitness( double vertex[], bool writeFile ) {
 
 	queue.enqueueReadBuffer( cl_final_result, CL_TRUE, 0, sizeof( double ), fitness_value );
 
-	return fitness_value[ 0 ];
+	// If we are at the end of the program, ouput data to files.
+	if ( writeFile ) {
+		double Cs[ 4 ] = { 0, 0, 0, 0 };
+
+		// Warp images.
+		FImage *warp_base = new FImage( base->width, base->height, base->metadata );
+		FImage *warp_sliver = new FImage( sliver->width, sliver->height, sliver->metadata );
+		base->warpBase ( warp_base, As, Bs, Cs, 1, S_WRITE_INTERP );
+		sliver->warpSliver ( warp_sliver, As, Bs, Cs, S_WRITE_INTERP );
+
+		double* RCs = new double[ sliver->width + sliver->height ];
+		queue.enqueueReadBuffer ( cl_rcs, CL_TRUE, 0, sizeof ( double ) * ( sliver->width + sliver->height ), RCs );
+
+		// Apply RC Values.
+		for ( int i = 1; i <= maxX; i++ ) {
+			double z_change = RCs[ i - 1 ];
+			for ( int j = 0; j < warp_sliver->height; ++j ) {
+				if ( warp_sliver->fastGet( i, j ) == -std::numeric_limits<double>::infinity() ) continue;
+				warp_sliver->fastSet( i, j, warp_sliver->fastGet( i, j ) + z_change );
+			}
+		}
+		for ( int j = minY; j <= maxY; ++j ) {
+			double z_change = RCs[ sliver->width + j - minY ];
+			for ( int i = 0; i < warp_base->width; i++ ) {
+				if ( warp_base->fastGet( i, j ) == -std::numeric_limits<double>::infinity() )	continue;
+				warp_base->fastSet( i, j, warp_base->fastGet( i, j ) + z_change );
+			}
+		}
+
+		double base_min = warp_base->getMin();
+		double base_max = warp_base->getMax();
+		double sliver_min = warp_sliver->getMin();
+		double sliver_max = warp_sliver->getMax();
+		double min_val = base_min < sliver_min ? base_min : sliver_min;
+		double max_val = base_max < sliver_max ? base_max : sliver_max;
+		double slope = 1 / ( max_val - min_val );
+
+		// Write warped and corrected images.
+		warp_base->writeImage( "w_base.tif" );
+		warp_sliver->writeImage( "w_sliver.tif" );
+
+		// Write viewable images.
+		warp_base->writeDisplayableImage( "dw_base.tif", slope, min_val );
+		warp_sliver->writeDisplayableImage( "dw_sliver.tif", slope, min_val );
+
+		delete[] RCs;
+		delete warp_base;
+		delete warp_sliver;
+	}
 
 #else	// Non-OpenCL (Intel's Thread Building Blocks and sequential) versions of fastZ correction
 

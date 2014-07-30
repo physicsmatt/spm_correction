@@ -31,23 +31,18 @@
 
 #include "FImage.h"
 
-#ifndef S_MODE_OPENCL
-	#define S_WRITE_INTERP F_BSPLINE
 
-
-
-	#define S_INTERP_CONST_A -0.5
-	#if ( S_WRITE_INTERP == F_BSPLINE )	// Cubic B-spline
-		#define S_INTERP_CONST_B 1
-		#define S_INTERP_CONST_C 0
-	#elif ( S_WRITE_INTERP == F_CATMULL_BSPLINE )	// Catmull-Rom Spline
-		#define S_INTERP_CONST_B 0
-		#define S_INTERP_CONST_C 0.5
-	#else // Mitchell-Netravali Cubic Filter ( Not sure if defines can be fractions. Test this later. )
-		#define	S_INTERP_CONST_B 1.0 / 3.0
-		#define	S_INTERP_CONST_C 1.0 / 3.0
-	#endif
-
+#define S_WRITE_INTERP F_BSPLINE
+#define S_INTERP_CONST_A -0.5
+#if ( S_WRITE_INTERP == F_BSPLINE )	// Cubic B-spline
+	#define S_INTERP_CONST_B 1
+	#define S_INTERP_CONST_C 0
+#elif ( S_WRITE_INTERP == F_CATMULL_BSPLINE )	// Catmull-Rom Spline
+	#define S_INTERP_CONST_B 0
+	#define S_INTERP_CONST_C 0.5
+#else // Mitchell-Netravali Cubic Filter ( Not sure if defines can be fractions. Test this later. )
+	#define	S_INTERP_CONST_B 1.0 / 3.0
+	#define	S_INTERP_CONST_C 1.0 / 3.0
 #endif
 
 
