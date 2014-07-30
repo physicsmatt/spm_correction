@@ -544,6 +544,8 @@ double fastZFitness( double vertex[], bool writeFile ) {
 		delete warp_sliver;
 	}
 
+	return fitness_value[ 0 ];
+
 #else	// Non-OpenCL (Intel's Thread Building Blocks and sequential) versions of fastZ correction
 
 
