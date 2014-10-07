@@ -92,7 +92,7 @@ argo::argo () {
 	 *	To avoid being trapped in some rut, it seems to be VERY important to have the reflection
 	 *	parameter slightly less than 1.0, and the growth parameter less than 2.0.
 	 */
-	simplex_growth = 1.5, simplex_contract = 0.5, simplex_reflect = 0.9, simplex_halt = 0;
+	simplex_growth = 1.5, simplex_contract = 0.5, simplex_reflect = 0.9, simplex_halt = 1e-15;
 	simplex_iterations = 5000;
 
 	results.bestdiff = INFINITY;
