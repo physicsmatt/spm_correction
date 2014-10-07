@@ -1,11 +1,11 @@
 /*Here is an implementation in C.  Using it on Rosenbrock's famous function
 
-determineFitness(x,y)   =   (1-x)^2  +  100[ (x^2 - y)^2 ]
+determineDifference(x,y)   =   (1-x)^2  +  100[ (x^2 - y)^2 ]
 
 from the traditional starting point   (x,y) = (-1.2, +1.0)
 this code calculated a minimum at     (x,y) = ( 1.000026  ,  1.000051 )
-while using 177 evaluations of the function determineFitness.
-(It's easy to see that Rosenbrock's function determineFitness has a minimum at (1,1)).
+while using 177 evaluations of the function determineDifference.
+(It's easy to see that Rosenbrock's function determineDifference has a minimum at (1,1)).
 
 No warranty is expressed or implied, use at your own risk, remember that
 this software is worth what you paid for it, and you paid zero.
@@ -26,7 +26,7 @@ this software is worth what you paid for it, and you paid zero.
 #include "simplex.h"
 
 
-#define         PRINTEM         (500)
+#define         PRINTEM         (100)
 
 //#define         ALP             (1.5)   /* reflection parameter   */
 //#define         BET             (0.7)   /* contraction parameter  */
@@ -35,7 +35,7 @@ this software is worth what you paid for it, and you paid zero.
 
 bool fastZ = true;
 
-long fitness_evals = 0;
+long difference_evals = 0;
 bool debug = false;
 int operations = 0;
 
@@ -115,7 +115,7 @@ cl::make_kernel < cl::Buffer&, cl::Buffer&, cl::Buffer&, cl::Buffer&,
 */
 
 cl::LocalSpaceArg locals;
-double* fitness_value;
+double* difference_value;
 
 
 /**
@@ -265,7 +265,7 @@ void initializeOpenCLContext() {
 	*/
 
 	locals = cl::Local( sizeof( double ) * 4 );
-	fitness_value = new double[ 1 ];
+	difference_value = new double[ 1 ];
 }
 #else
 	double* base_array;
@@ -286,7 +286,7 @@ void initializeOpenCLContext() {
  *	
  *	@return	A double precision difference value of the image.
  */
-double fastZFitness( double vertex[], bool writeFile ) {
+double fastZDifference( double vertex[], bool writeFile ) {
 	// Precomputation of bounds and weights necessary.
 	double As[ 4 ] = { vertex[ 0 ], vertex[ 2 ], vertex[ 4 ], vertex[ 6 ] };
 	double Bs[ 4 ] = { vertex[ 1 ], vertex[ 3 ], vertex[ 5 ], vertex[ 7 ] };
@@ -492,7 +492,7 @@ double fastZFitness( double vertex[], bool writeFile ) {
 							 maxX, minY, maxY, ( int ) sliver->width, weightRight, weightTop, weightBottom ).wait();
 	*/
 
-	queue.enqueueReadBuffer( cl_final_result, CL_TRUE, 0, sizeof( double ), fitness_value );
+	queue.enqueueReadBuffer( cl_final_result, CL_TRUE, 0, sizeof( double ), difference_value );
 
 	// If we are at the end of the program, ouput data to files.
 	if ( writeFile ) {
@@ -544,7 +544,7 @@ double fastZFitness( double vertex[], bool writeFile ) {
 		delete warp_sliver;
 	}
 
-	return fitness_value[ 0 ];
+	return difference_value[ 0 ];
 
 #else	// Non-OpenCL (Intel's Thread Building Blocks and sequential) versions of fastZ correction
 
@@ -734,49 +734,49 @@ double fastZFitness( double vertex[], bool writeFile ) {
 #endif
 
 	// KRC Sum
-#ifdef S_MODE_TBB
-	tbb::parallel_for( 0, n, 1, [&]( int j )	{
-#elif defined( S_MODE_SEQUENTIAL )
+// #ifdef S_MODE_TBB
+//	tbb::parallel_for( 0, n, 1, [&]( int j )	{
+// #elif defined( S_MODE_SEQUENTIAL )
 	for ( int j = 0; j < n; ++j ) {
-#endif
-#ifdef S_MODE_TBB
-		cs.lock();
-#endif
+// #endif
+//#ifdef S_MODE_TBB
+//		cs.lock();
+//#endif
 		double y = KRCs[ m + j ] - skr_error;
 		double t = skr + y;
 		skr_error = ( t - skr ) - y;
 		skr = t;
-#ifdef S_MODE_TBB
-		cs.unlock();
-#endif
+//#ifdef S_MODE_TBB
+//		cs.unlock();
+//#endif
 	}
-#ifdef S_MODE_TBB
-	);
-#endif
+//#ifdef S_MODE_TBB
+//	);
+//#endif
 
 	// Matrix Computation
-#ifdef S_MODE_TBB
-	tbb::parallel_for( 1, m, 1, [&]( int i )	{
-#elif defined( S_MODE_SEQUENTIAL )
+//#ifdef S_MODE_TBB
+//	tbb::parallel_for( 1, m, 1, [&]( int i )	{
+//#elif defined( S_MODE_SEQUENTIAL )
 	for ( int i = 1; i < m; ++i ) {
-#endif
+//#endif
 		RCs[ i - 1 ] = inv_n * ( KRCs[ i ] - KRCs[ 0 ] );
 	}
-#ifdef S_MODE_TBB
-	);
-#endif
+//#ifdef S_MODE_TBB
+//	);
+//#endif
 
 	// RC Sums.
-#ifdef S_MODE_TBB
-	tbb::parallel_for( m, size + 1, 1, [&]( int i ) {
-#elif defined( S_MODE_SEQUENTIAL )
+//#ifdef S_MODE_TBB
+//	tbb::parallel_for( m, size + 1, 1, [&]( int i ) {
+//#elif defined( S_MODE_SEQUENTIAL )
 	for ( int i = m; i <= size; ++i ) {
-#endif
+//#endif
 		RCs[ i - 1 ] = -inv_n * KRCs[ 0 ] - inv_mn * skr + inv_m * KRCs[ i ];
 	}
-#ifdef S_MODE_TBB
-	);
-#endif
+//#ifdef S_MODE_TBB
+//	);
+//#endif
 
 	// B-Spline sliver warping.
 #ifdef S_MODE_TBB
@@ -972,7 +972,7 @@ double fastZFitness( double vertex[], bool writeFile ) {
 		output.open( "matrix.txt", std::ios::out );
 		if ( output.is_open() ) {
 			output << "MinY : " << minY << "\t MaxY : " << maxY << "\t MaxX : " << maxX << "\n";
-			output << "Fitness : " << sum / area << "\n";
+			output << "Difference : " << sum / area << "\n";
 			output << "\n\n";
 			output << "This is the generated vector : \n\n";
 			for ( int i = 0; i < size; ++i ) {
@@ -1057,8 +1057,8 @@ double fastZFitness( double vertex[], bool writeFile ) {
  *	that the answer never converged beyond about 8 decimal places.  Plus, using floats instead of doubles didn't ACTUALLY
  *	make it ANY faster.  So doubles it is.
  */
-double slowZFitness( double vertex[] ) {
-	fitness_evals++;  //increment global variable used to count function evaluations
+double slowZDifference( double vertex[] ) {
+	difference_evals++;  //increment global variable used to count function evaluations
 
 	double sum = 0;
 	double area = 0;
@@ -1128,14 +1128,14 @@ double slowZFitness( double vertex[] ) {
  *	Apply fast or slow Z correction depending upon global flag set.
  *	
  *	@param	vertex	An array storing parameter values.
- *	@return		The calculated fitness.
+ *	@return		The calculated difference.
  */
-double determineFitness( double vertex[] ) {
-	fitness_evals++;  //increment global variable used to count function evaluations
+double determineDifference( double vertex[] ) {
+	difference_evals++;  //increment global variable used to count function evaluations
 	if ( fastZ )
-		return fastZFitness( vertex, false );
+		return fastZDifference( vertex, false );
 	else
-		return slowZFitness( vertex );
+		return slowZDifference( vertex );
 }
 
 /**
@@ -1204,11 +1204,11 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 
 	double** simplex_matrix = new double*[ n + 1 ];
 	for ( i = 0; i < n + 1; ++i )	simplex_matrix[ i ] = new double[ n + 1 ];
-	double* fitnesses = new double[ n + 1 ];
+	double* differences = new double[ n + 1 ];
 	double* vertex_reflection = new double[ n + 1 ];
 	double* vertex_expansion = new double[ n + 1 ];
 	double* centroid = new double[ n + 1 ];
-	double fitness_reflection, fitness_expansion, fitness_contraction;
+	double reflection_difference, expansion_difference, contraction_difference;
 
 	printf( "Begin Simplex Routine!\n" );
 	copyBase( _base );
@@ -1233,7 +1233,6 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 		printf( "TBB Thread Scheduler Initialized : %d Threads.\n", init.default_num_threads() );
 	}
 	else {
-		
 		printf( "TBB Thread Scheduler Already Exists : %d Threads.\n", init.default_num_threads() );
 	}
 	#endif
@@ -1243,11 +1242,11 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	int iterations;
 	int max_index, min_index;
 	double c;
-	double max_fitness;
-	double min_fitness;
-	double error;
-	double mean_fitness;
-	double next_max_fitness;
+	double max_difference;
+	double min_difference;
+	double deviation;
+	double mean_difference;
+	double next_max_difference;
 
 	/***************************************************/
 	//fill the simplex
@@ -1259,7 +1258,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 		vertex_reflection[ i ] = 0.0;
 		vertex_expansion[ i ] = 0.0;
 		centroid[ i ] = 0.0;
-		fitnesses[ i ] = 0.0;
+		differences[ i ] = 0.0;
 	}
 	/* fill in the remaining points of the initial Simplex            */
 	/* point no. k is the initial point displaced by 2x along coord k */
@@ -1279,24 +1278,26 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	/* go through all of the points of the Simplex & find max, min */
 	max_index = 0;
 	min_index = 0;
-	fitnesses[ 0 ] = determineFitness( input_vector );
-	max_fitness = fitnesses[ 0 ];
-	min_fitness = max_fitness;
+	differences[ 0 ] = determineDifference( input_vector );
+	max_difference = differences[ 0 ];
+	min_difference = max_difference;
+	iterations = 0;
 
-	//min_fitness = F_L, max_fitness = F_A
+	//min_difference = F_L, max_difference = F_A
 	for ( i = 1; i <= n; i++ ) {
 		for ( j = 0; j < n; j++ )
 			vertex_reflection[ j ] = simplex_matrix[ i ][ j ];
-		fitnesses[ i ] = determineFitness( vertex_reflection );
-		if ( fitnesses[ i ] >= max_fitness ) {
-			max_fitness = fitnesses[ i ];
-			//x_h[i]=max_fitness;
-			//		x_a[i] = fitnesses[max_index];
+		differences[ i ] = determineDifference( vertex_reflection );
+		if ( differences[ i ] >= max_difference ) {
+			max_difference = differences[ i ];
+			next_max_difference = differences[ max_index ];
+			//x_h[i]=max_difference;
+			//		x_a[i] = differences[max_index];
 			max_index = i;
 		}
-		if ( fitnesses[ i ] < min_fitness ) {
-			min_fitness = fitnesses[ i ];
-			//					x_l[i]=max_fitness;
+		if ( differences[ i ] < min_difference ) {
+			min_difference = differences[ i ];
+			//					x_l[i]=max_difference;
 			min_index = i;
 		}
 	}
@@ -1308,32 +1309,240 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 		}
 		centroid[ j ] = centroid[ j ] / ( ( double ) n );
 	}
-	mean_fitness = 0.00;
+	
+	mean_difference = 0.00;
+	deviation = 0.00;
 	for ( i = 0; i <= n; i++ ) {
-		mean_fitness += fitnesses[ i ];
+		mean_difference += differences[ i ];
 	}
-	mean_fitness = mean_fitness / ( ( double ) ( n + 1 ) );
-	error = 0.00;
+	mean_difference = mean_difference / ( ( double ) ( n + 1 ) );
 	for ( i = 0; i <= n; i++ ) {
-		error += ( mean_fitness - fitnesses[ i ] ) * ( mean_fitness - fitnesses[ i ] );
+		deviation += ( mean_difference - differences[ i ] ) * ( mean_difference - differences[ i ] );
 	}
-	error = sqrt( error / ( ( double ) ( n + 1 ) ) ) / mean_fitness;
-	iterations = 0;
+	deviation = sqrt( deviation / ( ( double ) ( n + 1 ) ) );
+	// double error = ( max_difference - min_difference ) / max( max_difference, 1.0 );
 
-	while ( ( error >= errhalt ) && ( iterations < maxi + 1 ) ) {
-		max_index = min_index = 0;
+	double* param_differences = new double[ n ];
+	double** past_param_extrema = new double*[ n ];
+	double** current_param_extrema = new double*[ n ];
+	for ( i = 0; i < n; ++i ) {
+		past_param_extrema[ i ] = new double[ 2 ];
+		past_param_extrema[ i ][ 0 ] = INFINITY;
+		past_param_extrema[ i ][ 1 ] = INFINITY;
+		current_param_extrema[ i ] = new double[ 2 ];
+	}
+	double max_param_difference = INFINITY;
+	double max_successive_difference = INFINITY;
+
+	double* normalize_factors = new double[ n ];
+	normalize_factors[ 0 ] = 1.0;
+	normalize_factors[ 1 ] = 1.0;
+	normalize_factors[ 2 ] = sliver->height;
+	normalize_factors[ 3 ] = sliver->height;
+	normalize_factors[ 4 ] = sliver->height * sliver->height;
+	normalize_factors[ 5 ] = sliver->height * sliver->height;
+	normalize_factors[ 6 ] = sliver->height * sliver->height * sliver->height;
+	normalize_factors[ 7 ] = sliver->height * sliver->height * sliver->height;
+
+	//while ( ( deviation >= errhalt ) && ( iterations < maxi + 1 ) ) {
+	while ( ( ( max_param_difference > 1e-13 ) || ( max_successive_difference >= 1e-10 ) ) && ( iterations < maxi + 1 ) ) {
 		debug = false;
-		max_fitness = min_fitness = fitnesses[ 0 ];
+		/*new code*/
+		///*******************************************************///
+		///************************reflection*********************///
+		///*******************************************************///
+		//calculate the points of the reflected simplex
+		for ( i = 0; i < n; i++ ) {
+			c = centroid[ i ];
+			vertex_reflection[ i ] = c + alpha * ( c - simplex_matrix[ max_index ][ i ] );
+		}
+
+		reflection_difference = determineDifference( vertex_reflection );
+
+		//if the reflected simplex is decent, use it...but not if its very good.
+		//if the reflected simplex is very good, try an expansion
+		if ( min_difference <= reflection_difference && reflection_difference < next_max_difference ) {
+			for ( i = 0; i < n; i++ ) {
+				simplex_matrix[ max_index ][ i ] = vertex_reflection[ i ];
+			}
+			differences[ max_index ] = reflection_difference;
+			operations++;
+			//printf("R");
+			debug = true;
+		}
+		///*******************************************************///
+		///************************greedy expansion***************///
+		///*********************non smooth function***************///
+		/*if(reflection_difference < min_difference){
+		for(i=0; i<n; i++){
+		c = centroid[i];
+		vertex_expansion[i] = c + gamma*(vertex_reflection[i]-c);
+		}
+		expansion_difference = determineDifference(vertex_expansion);
+		if(expansion_difference < min_difference){
+		for(i =0; i<n; i++){Simplex[max_index][i]=vertex_expansion[i];}
+		max_difference = expansion_difference ;
+		printf("e");
+		operations++;
+		debug = true;
+		goto do_more;
+		}
+		else{
+		for(i =0; i<n; i++){Simplex[max_index][i]=vertex_reflection[i];}
+		max_difference = reflection_difference ;
+		printf("r");
+		operations++;
+		debug = true;
+		goto do_more;
+		}
+		}*/
+
+		///*******************************************************///
+		///*********************greedy minimization***************///
+		///************************smooth function****************///
+		//if the reflected point produced a simplex with a smaller value than the current minimum,
+		//check to see if an expansion produces an even better simplex
+		else if ( reflection_difference < min_difference ) {		//never make this <= ~ Nathan
+			for ( j = 0; j < n; j++ ) {
+				c = centroid[ j ];
+				vertex_expansion[ j ] = c + gamma * ( vertex_reflection[ j ] - c );
+			}
+			expansion_difference = determineDifference( vertex_expansion );
+			//if the expanded simplex is better, use it.
+			if ( expansion_difference < reflection_difference ) {
+				for ( i = 0; i < n; i++ ) {
+					simplex_matrix[ max_index ][ i ] = vertex_expansion[ i ];
+				}
+				max_difference = expansion_difference;
+				//printf("e");
+				operations++;
+				debug = true;
+			}
+			//if the expanded simplex isn't better, use the reflected simplex, this will keep the
+			//simplex smaller
+			else if ( expansion_difference >= reflection_difference ) {
+				for ( i = 0; i < n; i++ ) {
+					simplex_matrix[ max_index ][ i ] = vertex_reflection[ i ];
+				}
+				max_difference = reflection_difference;
+				//printf("r");
+				operations++;
+				debug = true;
+			}
+		}
+		/*Nathan's Contraction and Shrink code to include both contraction cases*/
+		///*******************************************************///
+		///************************Contraction********************///
+		///*******************************************************///
+		//try A contraction if the reflected value is greater than the second greatest value
+		//(which from the other situations it actually has to be...if statement might not be
+		//needed)
+		else if ( reflection_difference >= next_max_difference ) {
+			//cout << "\nerror impending\nFXR: " << reflection_difference << "\nFXA: " << next_max_difference << "\nymax: " << max_difference;
+			bool le = true;
+			if ( reflection_difference < max_difference ) {
+				le = true;
+				for ( i = 0; i < n; i++ ) {
+					double c = centroid[ i ];
+					vertex_expansion[ i ] = c + ( beta * ( vertex_reflection[ i ] - c ) );
+				}
+			}
+			if ( reflection_difference >= max_difference ) {
+				le = false;
+				for ( i = 0; i < n; i++ ) {
+					double c = centroid[ i ];
+					vertex_expansion[ i ] = c + ( beta * ( simplex_matrix[ max_index ][ i ] - c ) );
+				}
+			}
+
+			expansion_difference = determineDifference( vertex_expansion );
+			if ( le == true ) {
+				if ( expansion_difference <= reflection_difference ) {
+					//printf("c");
+					operations++;
+					debug = true;
+					//cout << "case1\n";
+					//getchar();
+					for ( i = 0; i < n; i++ ) {
+						simplex_matrix[ max_index ][ i ] = vertex_expansion[ i ];
+						differences[ max_index ] = reflection_difference;
+						max_difference = reflection_difference;
+					}
+				}
+				else {
+					/* contraction failed; collapse simplex points */
+					/* towards the present minimum point */
+					//printf("S-c");
+					operations++;
+					debug = true;
+					for ( i = 0; i <= n; i++ ) {
+						for ( j = 0; j < n; j++ ) {
+							simplex_matrix[ i ][ j ] = 0.5 * ( simplex_matrix[ i ][ j ] + simplex_matrix[ min_index ][ j ] );
+							vertex_reflection[ j ] = simplex_matrix[ i ][ j ];
+						}
+						reflection_difference = determineDifference( vertex_reflection );
+						differences[ i ] = reflection_difference;
+					}
+				}
+			}
+			if ( le == false ) {
+				if ( expansion_difference < max_difference ) {
+					//printf("C");
+					operations++;
+					debug = true;
+					//cout << "case2\n";
+					//getchar();
+					for ( i = 0; i < n; i++ ) {
+						simplex_matrix[ max_index ][ i ] = vertex_expansion[ i ];
+						differences[ max_index ] = expansion_difference;
+						max_difference = expansion_difference;
+					}
+				}
+				else {
+					/* contraction failed; collapse simplex points */
+					/* towards the present minimum point */
+					//printf("S-C");
+					operations++;
+					debug = true;
+					for ( i = 0; i <= n; i++ ) {
+						for ( j = 0; j < n; j++ ) {
+							simplex_matrix[ i ][ j ] = 0.5 * ( simplex_matrix[ i ][ j ] + simplex_matrix[ min_index ][ j ] );
+							vertex_reflection[ j ] = simplex_matrix[ i ][ j ];
+						}
+						reflection_difference = determineDifference( vertex_reflection );
+						differences[ i ] = reflection_difference;
+					}
+				}
+			}
+		}
+		//end contraction
+
+		/* compute the "standard error" of the Simplex */
+		/* which is the termination criterion for the  */
+		/* outermost (while) loop.                     */
+		mean_difference = 0.00;
+		deviation = 0.00;
+		for ( i = 0; i <= n; i++ )
+			mean_difference += differences[ i ];
+		mean_difference /= ( ( double ) ( n + 1 ) );
+
+		for ( i = 0; i <= n; i++ )
+			deviation += ( mean_difference - differences[ i ] ) * ( mean_difference - differences[ i ] );
+		deviation = sqrt( deviation / ( ( double ) ( n + 1 ) ) );
+		// error = ( max_difference - min_difference ) / max( max_difference, 1 );
+
+		max_index = min_index = 0;
+		max_difference = min_difference = differences[ 0 ];
 		for ( i = 1; i <= n; i++ ) {
-			if ( fitnesses[ i ] >= max_fitness ) {
-				max_fitness = fitnesses[ i ];
+			if ( differences[ i ] >= max_difference ) {
+				max_difference = differences[ i ];
 				//get the second highest value
-				next_max_fitness = fitnesses[ max_index ];
+				next_max_difference = differences[ max_index ];
 				max_index = i;
 			}
-			/*if(fitnesses[i] < min_fitness)*/
-			else if ( fitnesses[ i ] < min_fitness ) {
-				min_fitness = fitnesses[ i ];
+			/*if(differences[i] < min_difference)*/
+			else if ( differences[ i ] < min_difference ) {
+				min_difference = differences[ i ];
 				min_index = i;
 			}
 		}
@@ -1348,8 +1557,63 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 			centroid[ j ] /= ( ( double ) n );
 		}
 
+		for ( i = 0; i < n; ++i ) {	// For each individual parameter
+			param_differences[ i ] = 0.0;	// Zero out parameter differences
+			current_param_extrema[ i ][ 0 ] = simplex_matrix[ 1 ][ i ];
+			current_param_extrema[ i ][ 1 ] = simplex_matrix[ 1 ][ i ];
+			for ( j = 1; j <= n; ++j ) {	// Go through each vertex
+				if ( simplex_matrix[ j ][ i ] < current_param_extrema[ i ][ 0 ] ) {
+					current_param_extrema[ i ][ 0 ] = simplex_matrix[ j ][ i ];	// Get minimum value of parameter
+				}
+				else if ( simplex_matrix[ j ][ i ] > current_param_extrema[ i ][ 1 ] ) {
+					current_param_extrema[ i ][ 1 ] = simplex_matrix[ j ][ i ];	// Get maximum value of parameter
+				}
+			}
+			param_differences[ i ] = ( current_param_extrema[ i ][ 1 ] - current_param_extrema[ i ][ 0 ] ) * normalize_factors[ i ];	// Param_Diff = Max - Min
+		}
+
+		max_param_difference = 0.0;
+		for ( i = 0; i < n; ++i ) {
+			if ( param_differences[ i ] > max_param_difference ) {
+				max_param_difference = param_differences[ i ];
+			}
+		}
+
+		int limiting_param = -1;
+
+		if ( ( iterations % 100 ) == 0 ) {
+			max_successive_difference = 0.0;
+			for ( i = 0; i < n; ++i ) {
+				double diff_mins = abs( current_param_extrema[ i ][ 0 ] - past_param_extrema[ i ][ 0 ] ) * normalize_factors[ i ];
+				double diff_maxs = abs( current_param_extrema[ i ][ 1 ] - past_param_extrema[ i ][ 1 ] ) * normalize_factors[ i ];
+				double diff_min_max = abs( current_param_extrema[ i ][ 0 ] - past_param_extrema[ i ][ 1 ] ) * normalize_factors[ i ];
+				double diff_max_min = abs( current_param_extrema[ i ][ 1 ] - past_param_extrema[ i ][ 0 ] ) * normalize_factors[ i ];
+				if ( diff_mins > max_successive_difference ) {
+					max_successive_difference = diff_mins;
+					limiting_param = i;
+				}
+				if ( diff_maxs > max_successive_difference ) {
+					max_successive_difference = diff_maxs;
+					limiting_param = i;
+				}
+				if ( diff_min_max > max_successive_difference ) {
+					max_successive_difference = diff_min_max;
+					limiting_param = i;
+				}
+				if ( diff_max_min > max_successive_difference ) {
+					max_successive_difference = diff_max_min;
+					limiting_param = i;
+				}
+			}
+
+			for ( i = 0; i < n; ++i ) {
+				past_param_extrema[ i ][ 0 ] = current_param_extrema[ i ][ 0 ];
+				past_param_extrema[ i ][ 1 ] = current_param_extrema[ i ][ 1 ];
+			}
+		}
+
 		if ( ( iterations % ( PRINTEM ) ) == 0 ) {
-			printf( "ITERATION %4d    Best Fitness = %e\n", iterations, min_fitness );
+			printf( "ITERATION %4d    Best Difference = %e\n", iterations, min_difference );
 			printf( "%d Operations completed.\n", operations );
 			operations = 0;
 			printf( "Current Best Parameters : \n" );
@@ -1357,219 +1621,47 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 			printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 1 ], simplex_matrix[ min_index ][ 3 ], simplex_matrix[ min_index ][ 5 ], simplex_matrix[ min_index ][ 7 ] );
 			// printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 8 ], simplex_matrix[ min_index ][ 9 ], simplex_matrix[ min_index ][ 10 ], simplex_matrix[ min_index ][ 11 ] );
 			for ( int i = 0; i < n + 1; ++i ) {
-				printf( "Fitness %d : %.30e\n", i, fitnesses[ i ] );
+				printf( "Difference %d : %.20e\n", i, differences[ i ] );
 			}
-			printf( "Average Fitness : %.30e\n", mean_fitness );
-			printf( "Deviation / Average : %.30e\n", error );
+			printf( "Average Difference : %.20e\n", mean_difference );
+			printf( "Deviation : %.20e\n", deviation );
+			printf( "Normalized A0 Difference : %.20e\n", param_differences[ 0 ] );
+			printf( "Normalized B0 Difference : %.20e\n", param_differences[ 1 ] );
+			printf( "Normalized A1 Difference : %.20e\n", param_differences[ 2 ] );
+			printf( "Normalized B1 Difference : %.20e\n", param_differences[ 3 ] );
+			printf( "Normalized A2 Difference : %.20e\n", param_differences[ 4 ] );
+			printf( "Normalized B2 Difference : %.20e\n", param_differences[ 5 ] );
+			printf( "Normalized A3 Difference : %.20e\n", param_differences[ 6 ] );
+			printf( "Normalized B3 Difference : %.20e\n", param_differences[ 7 ] );
+			printf( "Highest Parameter Difference : %.20e\n", max_param_difference );
+			printf( "Highest Successive Difference Resulting from Param %d : %.20e\n", limiting_param, max_successive_difference );
 			printf( "\n" );
 		}
-		/*new code*/
-		///*******************************************************///
-		///************************reflection*********************///
-		///*******************************************************///
-		//calculate the points of the reflected simplex
-		for ( i = 0; i < n; i++ ) {
-			c = centroid[ i ];
-			vertex_reflection[ i ] = c + alpha * ( c - simplex_matrix[ max_index ][ i ] );
-		}
-		
-		fitness_reflection = determineFitness( vertex_reflection );
-		
-		//if the reflected simplex is decent, use it...but not if its very good.
-		//if the reflected simplex is very good, try an expansion
-		if ( min_fitness <= fitness_reflection && fitness_reflection < next_max_fitness ) {
-			for ( i = 0; i < n; i++ ) {
-				simplex_matrix[ max_index ][ i ] = vertex_reflection[ i ];
-			}
-			for ( i = 0; i < n; i++ )
-				simplex_matrix[ max_index ][ i ] = vertex_reflection[ i ];
-			fitnesses[ max_index ] = fitness_reflection;
-			operations++;
-			//printf("R");
-			debug = true;
-		}
-		///*******************************************************///
-		///************************greedy expansion***************///
-		///*********************non smooth function***************///
-		/*if(fitness_reflection < min_fitness){
-		for(i=0; i<n; i++){
-		c = centroid[i];
-		vertex_expansion[i] = c + gamma*(vertex_reflection[i]-c);
-		}
-		fitness_expansion = determineFitness(vertex_expansion);
-		if(fitness_expansion < min_fitness){
-		for(i =0; i<n; i++){Simplex[max_index][i]=vertex_expansion[i];}
-		max_fitness = fitness_expansion ;
-		printf("e");
-		operations++;
-		debug = true;
-		goto do_more;
-		}
-		else{
-		for(i =0; i<n; i++){Simplex[max_index][i]=vertex_reflection[i];}
-		max_fitness = fitness_reflection ;
-		printf("r");
-		operations++;
-		debug = true;
-		goto do_more;
-		}
-		}*/
 
-		///*******************************************************///
-		///*********************greedy minimization***************///
-		///************************smooth function****************///
-		//if the reflected point produced a simplex with a smaller value than the current minimum,
-		//check to see if an expansion produces an even better simplex
-		else if ( fitness_reflection < min_fitness ) {		//never make this <= ~ Nathan
-			for ( j = 0; j < n; j++ ) {
-				c = centroid[ j ];
-				vertex_expansion[ j ] = c + gamma * ( vertex_reflection[ j ] - c );
-			}
-			fitness_expansion = determineFitness( vertex_expansion );
-			//if the expanded simplex is better, use it.
-			if ( fitness_expansion < fitness_reflection ) {
-				for ( i = 0; i < n; i++ ) {
-					simplex_matrix[ max_index ][ i ] = vertex_expansion[ i ];
-				}
-				max_fitness = fitness_expansion;
-				//printf("e");
-				operations++;
-				debug = true;
-			}
-			//if the expanded simplex isn't better, use the reflected simplex, this will keep the
-			//simplex smaller
-			else if ( fitness_expansion >= fitness_reflection ) {
-				for ( i = 0; i < n; i++ ) {
-					simplex_matrix[ max_index ][ i ] = vertex_reflection[ i ];
-				}
-				max_fitness = fitness_reflection;
-				//printf("r");
-				operations++;
-				debug = true;
-			}
-		}
-		/*Nathan's Contraction and Shrink code to include both contraction cases*/
-		///*******************************************************///
-		///************************Contraction********************///
-		///*******************************************************///
-		//try A contraction if the reflected value is greater than the second greatest value
-		//(which from the other situations it actually has to be...if statement might not be
-		//needed)
-		else if ( fitness_reflection >= next_max_fitness ) {
-			//cout << "\nerror impending\nFXR: " << fitness_reflection << "\nFXA: " << next_max_fitness << "\nymax: " << max_fitness;
-			bool le = true;
-			if ( fitness_reflection < max_fitness ) {
-				le = true;
-				for ( i = 0; i < n; i++ ) {
-					double c = centroid[ i ];
-					vertex_expansion[ i ] = c + ( beta * ( vertex_reflection[ i ] - c ) );
-				}
-			}
-			if ( fitness_reflection >= max_fitness ) {
-				le = false;
-				for ( i = 0; i < n; i++ ) {
-					double c = centroid[ i ];
-					vertex_expansion[ i ] = c + ( beta * ( simplex_matrix[ max_index ][ i ] - c ) );
-				}
-			}
-
-			fitness_expansion = determineFitness( vertex_expansion );
-			if ( le == true ) {
-				if ( fitness_expansion <= fitness_reflection ) {
-					//printf("c");
-					operations++;
-					debug = true;
-					//cout << "case1\n";
-					//getchar();
-					for ( i = 0; i < n; i++ ) {
-						simplex_matrix[ max_index ][ i ] = vertex_expansion[ i ];
-						fitnesses[ max_index ] = fitness_reflection;
-						max_fitness = fitness_reflection;
-					}
-				}
-				else {
-					/* contraction failed; collapse simplex points */
-					/* towards the present minimum point */
-					//printf("S-c");
-					operations++;
-					debug = true;
-					for ( i = 0; i <= n; i++ ) {
-						for ( j = 0; j < n; j++ ) {
-							simplex_matrix[ i ][ j ] = 0.5 * ( simplex_matrix[ i ][ j ] + simplex_matrix[ min_index ][ j ] );
-							vertex_reflection[ j ] = simplex_matrix[ i ][ j ];
-						}
-						fitness_reflection = determineFitness( vertex_reflection );
-						fitnesses[ i ] = fitness_reflection;
-					}
-				}
-			}
-			if ( le == false ) {
-				if ( fitness_expansion < max_fitness ) {
-					//printf("C");
-					operations++;
-					debug = true;
-					//cout << "case2\n";
-					//getchar();
-					for ( i = 0; i < n; i++ ) {
-						simplex_matrix[ max_index ][ i ] = vertex_expansion[ i ];
-						fitnesses[ max_index ] = fitness_expansion;
-						max_fitness = fitness_expansion;
-					}
-				}
-				else {
-					/* contraction failed; collapse simplex points */
-					/* towards the present minimum point */
-					//printf("S-C");
-					operations++;
-					debug = true;
-					for ( i = 0; i <= n; i++ ) {
-						for ( j = 0; j < n; j++ ) {
-							simplex_matrix[ i ][ j ] = 0.5 * ( simplex_matrix[ i ][ j ] + simplex_matrix[ min_index ][ j ] );
-							vertex_reflection[ j ] = simplex_matrix[ i ][ j ];
-						}
-						fitness_reflection = determineFitness( vertex_reflection );
-						fitnesses[ i ] = fitness_reflection;
-					}
-				}
-			}
-		}
-		//end contraction
-
-		/* compute the "standard error" of the Simplex */
-		/* which is the termination criterion for the  */
-		/* outermost (while) loop.                     */
-		mean_fitness = 0.00;
-		for ( i = 0; i <= n; i++ )
-			mean_fitness += fitnesses[ i ];
-		mean_fitness /= ( ( double ) ( n + 1 ) );
-		error = 0.00;
-		for ( i = 0; i <= n; i++ )
-			error += ( mean_fitness - fitnesses[ i ] ) * ( mean_fitness - fitnesses[ i ] );
-		error = sqrt( error / ( ( double ) ( n + 1 ) ) ) / mean_fitness;
 		if ( debug == false ) {
 			printf( "\n" );
-			printf( "Reflection Fitness : %e\n", fitness_reflection );
-			printf( "Expansion Fitness : %e\n", fitness_expansion );
-			printf( "Best Fitness : %e\n", max_fitness );
-			printf( "Worst Fitness : %e\n", min_fitness );
-			printf( "Second Worst Fitness : %e\n", next_max_fitness );
+			printf( "Reflection Difference : %e\n", reflection_difference );
+			printf( "Expansion Difference : %e\n", expansion_difference );
+			printf( "Best Difference : %e\n", max_difference );
+			printf( "Worst Difference : %e\n", min_difference );
+			printf( "Second Worst Difference : %e\n", next_max_difference );
 			getchar();
 		}
 		iterations++;
 	} /* end of while loop */
 
-	/* find biggest and smallest values of determineFitness */
+	/* find biggest and smallest values of determineDifference */
 	max_index = 0;
 	min_index = 0;
-	max_fitness = fitnesses[ 0 ];
-	min_fitness = max_fitness;
+	max_difference = differences[ 0 ];
+	min_difference = max_difference;
 	for ( i = 1; i <= n; i++ ) {
-		if ( fitnesses[ i ] >= max_fitness ) {
-			max_fitness = fitnesses[ i ];
+		if ( differences[ i ] >= max_difference ) {
+			max_difference = differences[ i ];
 			max_index = i;
 		}
-		if ( fitnesses[ i ] < min_fitness ) {
-			min_fitness = fitnesses[ i ];
+		if ( differences[ i ] < min_difference ) {
+			min_difference = differences[ i ];
 			min_index = i;
 		}
 	}
@@ -1580,16 +1672,16 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	}
 
 	if ( fastZ ) {
-		fastZFitness( return_vector, true );
+		fastZDifference( return_vector, true );
 	}
 
-	printf( "\n\nSimplex took %ld evaluations.\n", fitness_evals );
+	printf( "\n\nSimplex took %ld evaluations.\n", difference_evals );
 	printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 0 ], simplex_matrix[ min_index ][ 2 ], simplex_matrix[ min_index ][ 4 ], simplex_matrix[ min_index ][ 6 ] );
 	printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 1 ], simplex_matrix[ min_index ][ 3 ], simplex_matrix[ min_index ][ 5 ], simplex_matrix[ min_index ][ 7 ] );
 
 
 #ifdef S_MODE_OPENCL
-	delete[] fitness_value;
+	delete[] difference_value;
 	delete clWarpSliverCubic;
 	delete clWarpBaseCubic;
 	delete clWarpSliverBspline;
@@ -1604,9 +1696,18 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	delete[] KRCs;
 	delete[] RCs;
 #endif
+	delete[] param_differences;
+	for ( i = 0; i < n; ++i ) {
+		delete[] past_param_extrema[ i ];
+		delete[] current_param_extrema[ i ];
+	}
+	delete[] past_param_extrema;
+	delete[] current_param_extrema;
+	delete[] normalize_factors;
+
 	for ( i = 0; i < n + 1; ++i )	delete[] simplex_matrix[ i ];
 	delete[] simplex_matrix;
-	delete[] fitnesses;
+	delete[] differences;
 	delete[] vertex_reflection;
 	delete[] vertex_expansion;
 	delete[] centroid;
