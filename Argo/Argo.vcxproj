@@ -21,7 +21,7 @@
   <ItemGroup>
     <ClCompile Include="FImage.cpp" />
     <ClCompile Include="main.cpp" />
-    <ClCompile Include="object_argo.cpp" />
+    <ClCompile Include="argo.cpp" />
     <ClCompile Include="simplex.cpp" />
   </ItemGroup>
   <ItemGroup>
