@@ -8,7 +8,7 @@
 		#define __CODEFOLD__
 	#endif
 
-	// BICUBIC WARPING KERNEL STRING!!!
+	// BICUBIC WARPING KERNEL STRING
 	#ifdef __CODEFOLD__
 
 	const std::string bicubic_kernels_string = R"(
@@ -27,6 +27,19 @@
 	#define DIVISION_SLIVER 1
 	#define DIVISION_BASE 1
 
+	/*
+	 *	Performs bicubic warping of the sliver image given Nelder-Mead optimized parameters. Makes use of local
+	 *	data.
+	 *
+	 *	@param sliver			Global original unwarped sliver.
+	 *	@param sliver_array		Global warped sliver.
+	 *	@param width			Sliver width.
+	 *	@param height			Sliver height.
+	 *	@param maxX				The maximum possible x-value (pre-computed) given parameters.
+	 *	@param minY				The minimum possible y-value (pre-computed) given parameters.
+	 *	@param maxY				The maximum possible y-value (pre-computed) given parameters.
+	 *
+	 */
 	__kernel void clWarpSliverCubic( __global __const double* sliver, __global double* sliver_array, double A1, double B1,
 							int width, int height, int maxX, int minY, int maxY )	{
 
@@ -214,6 +227,20 @@
 		}
 	}
 
+	/*
+	 *	Performs bicubic warping of the sliver image given Nelder-Mead optimized parameters. Makes use of local
+	 *	data.
+	 *
+	 *	@param base				Global original unwarped base.
+	 *	@param base_array		Global warped base.
+	 *	@param width			Sliver width.
+	 *	@param height			Sliver height.
+	 *	@param bwidth			Base width.
+	 *	@param maxX				The maximum possible x-value (pre-computed) given parameters.
+	 *	@param minY				The minimum possible y-value (pre-computed) given parameters.
+	 *	@param maxY				The maximum possible y-value (pre-computed) given parameters.
+	 *
+	 */
 	__kernel void clWarpBaseCubic( __global __const double* base, __global double* base_array, double A0, double A1, double A2, double A3, double B0, double B1, double B2, double B3,
 							int width, int height, int bwidth, int xbp, int maxX, int minY, int maxY )	{
 		__local int local_size;
@@ -414,6 +441,21 @@
 	#define B 1
 	#define C 0
 
+	/*
+	 *	Performs cubic b-spline warping of the base image given Nelder-Mead optimized parameters. Makes use of local
+	 *	data.
+	 *
+	 *	@param sliver			Global original unwarped sliver.
+	 *	@param sliver_array		Global warped sliver.
+	 *	@param A1								
+	 *	@param B1				
+	 *	@param width			Sliver width.
+	 *	@param height			Sliver height.
+	 *	@param maxX				The maximum possible x-value (pre-computed) given parameters.
+	 *	@param minY				The minimum possible y-value (pre-computed) given parameters.
+	 *	@param maxY				The maximum possible y-value (pre-computed) given parameters.
+	 *
+	 */
 	__kernel void clWarpSliverBspline( __global __const double* sliver, __global double* sliver_array, double A1, double B1,
 							int width, int height, int maxX, int minY, int maxY, __local double* sx, __local double* sy, __local double* ux, __local double* uy )	{
 		__local int local_size;
@@ -602,6 +644,20 @@
 		}
 	}
 
+	/*
+	 *	Performs cubic b-spline warping of the base image given Nelder-Mead optimized parameters. Makes use of local
+	 *	data.
+	 *
+	 *	@param base				Global original unwarped base.
+	 *	@param base_array		Global warped base.
+	 *	@param width			Sliver width.
+	 *	@param height			Sliver height.
+	 *	@param bwidth			Base width.
+	 *	@param maxX				The maximum possible x-value (pre-computed) given parameters.
+	 *	@param minY				The minimum possible y-value (pre-computed) given parameters.
+	 *	@param maxY				The maximum possible y-value (pre-computed) given parameters.
+	 *
+	 */
 	__kernel void clWarpBaseBspline( __global __const double* base, __global double* base_array, double A0, double A1, double A2, double A3, double B0, double B1, double B2, double B3,
 							int width, int height, int bwidth, int xbp, int maxX, int minY, int maxY, __local double* sx, __local double* sy, __local double* ux, __local double* uy )	{
 		__local int local_size;
@@ -803,6 +859,25 @@
 
 	const std::string summation_kernel_string = R"(
 
+	/*
+	 *	Performs the sum of differences of values within each individual column. We fix an x-value
+	 *	and compute kC_x = sum_{i=0}^{n} (base(x,i) - sliver(x,i)). Each individual work group computes
+	 *	num_blocks kC values. We use Kahan Summation implementation to achieve reproducibility in results.
+	 *
+	 *	*Note: This kernel generally achieves 80%+ kernel occupancy but it is not the most efficient implementation.*
+	 *
+	 *	@param sliver_array		Warped sliver image.
+	 *	@param base_array		Warped base image.
+	 *	@param sums_array		Storage area for sums.
+	 *	@param partial_sum		Local area to store partial sums.
+	 *	@param partial_error	Local area to store partial sum errors.
+	 *	@param width			Sliver width.
+	 *	@param minY				The minimum possible y-value (pre-computed) given parameters.
+	 *	@param m				Precomputed value for matrix. Represents maximum possible x-values.
+	 *	@param n				Precomputed value for matrix. Represents maximum possible y-values.
+	 *	@param num_sub_blocks	The stride that each individual work unit makes.
+	 *	@param num_blocks		The amount of column sums each work group computes.
+	 */
 	__kernel void clColumnSums( __global double* sliver_array, __global double* base_array, __global double* sums_array, __local double* partial_sum, __local double* partial_errors,
 								int width, int minY, int m, int n, int num_sub_blocks, int num_blocks )	{
 		__private int local_id = get_local_id( 0 );
@@ -843,6 +918,25 @@
 		}
 	}
 
+	/*
+	 *	Performs the sum of differences of values within each individual row. We fix a y-value
+	 *	and compute kR_y = sum_{i=0}^{m} (sliver(i, y) - base(i, y)). Each individual work group computes
+	 *	num_blocks kR values. We use Kahan Summation implementation to achieve reproducibility in results.
+	 *
+	 *	*Note: This kernel generally achieves 80%+ kernel occupancy but it is not the most efficient implementation.*
+	 *
+	 *	@param sliver_array		Warped sliver image.
+	 *	@param base_array		Warped base image.
+	 *	@param sums_array		Storage area for sums.
+	 *	@param partial_sum		Local area to store partial sums.
+	 *	@param partial_error	Local area to store partial sum errors.
+	 *	@param width			Sliver width.
+	 *	@param minY				The minimum possible y-value (pre-computed) given parameters.
+	 *	@param m				Precomputed value for matrix. Represents maximum possible x-values.
+	 *	@param n				Precomputed value for matrix. Represents maximum possible y-values.
+	 *	@param num_sub_blocks	The stride that each individual work unit makes.
+	 *	@param num_blocks		The amount of column sums each work group computes.
+	 */
 	__kernel void clRowSums( __global double* sliver_array, __global double* base_array, __global double* sums_array, __local double* partial_sum, __local double* partial_errors,
 							int width, int minY, int m, int n, int num_sub_blocks, int num_blocks )	{
 		__private int local_id = get_local_id( 0 );
@@ -884,6 +978,22 @@
 		}
 	}
 
+	/*
+	 *	Performs the closed form expression calculation for r and c values.
+	 *	Where we have that r_j = 1/n * sum_{i=1}^{m-1}(kC_i) + (m-1)/(mn) * sum_{i=0}^{n-1}(kR_i) + n/(mn) * kR_j
+	 *	and that c_i = 1/n * (-kC_0+kC_i)
+	 *	We use Kahan Summation implementation to achieve reproducibility in results.
+	 *
+	 *	*Note: This kernel generally achieves 80%+ kernel occupancy but it is not the most efficient implementation.*
+	 *
+	 *	@param sums_array		Storage area for sums.
+	 *	@param matrix_result	Storage area for r and c computation.
+	 *	@param partial_sum		Local area to store partial sums.
+	 *	@param partial_error	Local area to store partial sum errors.
+	 *	@param width			Sliver width.
+	 *	@param m				Precomputed value for matrix. Represents maximum possible x-values.
+	 *	@param n				Precomputed value for matrix. Represents maximum possible y-values.
+	 */
 	__kernel void clRCResults( __global double* sums_array, __global double* matrix_result,
 							__local double* partial_sum, __local double* partial_errors, int width, int m, int n )	{
 		__private int local_id = get_local_id( 0 );
@@ -1066,7 +1176,6 @@
 			final_result[ 0 ] = sum / weight;
 		}
 	}
-
 
 
 	__kernel void clDifferenceCalculation( __global double* final_result, __global double* matrix_results,

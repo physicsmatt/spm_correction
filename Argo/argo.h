@@ -73,8 +73,9 @@ class argo {
 		/**
 		 *	These parameters control the simplex routine.
 		 */
-		double simplex_growth, simplex_contract, simplex_reflect, simplex_halt;
+		double simplex_growth, simplex_contract, simplex_reflect;
 		int simplex_iterations;
+		bool simplex_mode;		/* True for fast-z correction, false for slow-z correction. */
 
 		/**
 		 *	The dimensions of resampled images.

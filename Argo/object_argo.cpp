@@ -92,7 +92,7 @@ argo::argo () {
 	 *	To avoid being trapped in some rut, it seems to be VERY important to have the reflection
 	 *	parameter slightly less than 1.0, and the growth parameter less than 2.0.
 	 */
-	simplex_growth = 1.5, simplex_contract = 0.5, simplex_reflect = 0.9, simplex_halt = 1e-15;
+	simplex_growth = 1.5, simplex_contract = 0.5, simplex_reflect = 0.9;
 	simplex_iterations = 5000;
 
 	results.bestdiff = INFINITY;
@@ -151,7 +151,6 @@ void argo::logInputParams () {
 	printf( "Input Growth : \t %f\n", simplex_growth );
 	printf( "Input Contraction : \t %f\n", simplex_contract );
 	printf( "Input Reflection : \t %f\n", simplex_reflect );
-	printf( "Input Error Halt : \t %f\n", simplex_halt );
 	printf( "Input Maximum Iterations : \t %d\n", simplex_iterations );
 	printf( "\n" );
 }
@@ -307,15 +306,31 @@ void argo::readImages ( bool verbose ) {
 
 /**
  *	Reads and parses a string of values. This is for command-line argo invocation.
+ *	Basic argo call : ./argo.exe -i "base.tif" -s "sliver.tif" -f 0 -0 3 -1 3 -2 .1 -3 .1 -4 .04 -5 .04 -6 .04 -7 .04 -p 2 -x 2 -b 0 -g 1.8 -c 0.7 -r 1.3 -t 15000
+ *
+ *	-i		The base image.
+ *	-s		The sliver image.
+ *	-f		Boolean flag indicating if the image needs to be flipped horizontally.
+ *	-0		The maximum A0 value.
+ *	-1		The maximum B0 value.
+ *	-2		The maximum a1 (not A1) value.
+ *	-3		The maximum b1 (not B1) value.
+ *	-4		The multiplier for a2.
+ *	-5		The multiplier for b2.
+ *	-6		The multiplier for a3.
+ *	-7		The multiplier for b3.
+ *	-p		The precision to down-scale the image (i.e -p 2 means down-scale the image by 50%)
+ *	-b		The block size.
+ *	-g		The simplex growth parameter.
+ *	-c		The simplex contraction parameter.
+ *	-r		The simplex reflection parameter.
+ *	-t		The maximum amount of iterations the simplex routine should run regardless of convergence.
+ *	-z		The z-correction mode, 0 for slow-z. Everything else results in fast-z.
  *
  *	@param	argc	The number of arguments.
  *	@param	argv	The arguments.
  */
 void argo::readInputParams ( int argc, char *argv[] ) {
-
-	//perror("Error: Usage is ImageMaster -i: ImagePath -s: SliverPath -A0: value -A1: value -A2: value -B0: value -B1: value -B2: value -p: precision -b: blocksize -g: growth -c: contract -r: reflection\n");
-	//ACTUALLY, there should be at least 31 arguments now, since I added cubic terms
-	//Also, usage is -0 A0value, -1 B0value, -2 a1value -3 b1value -4 a2multiplier -5 b2multiplier, etc.
 
 	char command_arg;
 	for ( int i = 1; i < argc; ++i ) {
@@ -380,12 +395,11 @@ void argo::readInputParams ( int argc, char *argv[] ) {
 				case 'r':
 					simplex_reflect = atof( argv[ i + 1 ] );
 					break;
-				case 'h':
-					simplex_halt = atof( argv[ i + 1 ] );
-					break;
 				case 't':
 					simplex_iterations = atoi( argv[ i + 1 ] );
 					break;
+				case 'z':
+					simplex_mode = atoi( argv[ i + 1 ] ) != 0 ? true : false;
 				default:
 					break;
 			}
@@ -495,6 +509,8 @@ void argo::initCombos () {
 			}
 		}
 	}
+
+	// Sort generated parameters
 	std::sort( combos.A_combos, combos.A_combos + A_combos_size );
 	std::sort( combos.B_combos, combos.B_combos + B_combos_size );
 }
@@ -514,7 +530,8 @@ void argo::initBetaGamma()	{
 
 	data_range = images_store.resamp_base->getRange();
 
-	double zstep = data_range / 256;	// Hardcoded for stepping over image.
+	// Hardcoded for stepping over image. For a byte scale image thus, we will have that z-step which is approximately 1.
+	double zstep = data_range / 256;	
 	double inv2zstep = 1 / ( 2 * zstep );
 	double invzstep2 = 1 / ( zstep * zstep );
 
@@ -618,13 +635,14 @@ void argo::performGridSearch(bool verbose)	{
 			memset(beta_gamma_store.dynamic_diffs, 0, dyn_diffs_size * sizeof(beta_values));
 
 			// Populate array with new beta values.
+			// **** NOTE: Parallelize in the future. The loops should be decoupled enough to allow for this. Determine which of the loops
+			// would be best to parallelize. ****
 			// long int diffs_address;
 			// long int difflets_address;
 			// int Xc = -sliver_block_width;
 			// int totX;
 			// int totY;
 			// int finalAddress = -mult3;
-
 			for (int sb = 0; sb < num_sliver_blocks; ++sb) {
 				//Now calculate offsets sx and symeh
 				//finalAddress += mult3;
@@ -740,7 +758,7 @@ void argo::performGridSearch(bool verbose)	{
 							double C3 = C.data()[3];
 							
 
-							// Critical section lock to prevent data overwriting.
+							
 							unsigned long long ignored = 0;
 							double function = 0;
 							for (int i = 0; i<numblocks; i++){
@@ -769,11 +787,14 @@ void argo::performGridSearch(bool verbose)	{
 								}
 
 								function += sum;
+								// Ignored is for debugging purposes. Remove in the future.
 								ignored += function > results.bestdiff ? numblocks - ( i + 1 ) : 0;
 							}
 
+							// Critical section lock to prevent data overwriting.
 							cs.lock();
 							// Note: this "if" block doesn't seem to slow down the program at all, compared to simpler statements.
+							// If we have generated a new minimum, overwrite values in results struct.
 							if (function <= results.bestdiff){
 								results.bestdiff = function;
 								results.bestA0 = (A0_B0_adj - B0_adj) / numblocks;
@@ -813,15 +834,18 @@ void argo::performGridSearch(bool verbose)	{
 
 /**
  *	Makes the call to simplex, taking in all values calculated by grid-search previously and passing them over along with
- *	corresponding precision values to help simplex function properly.
+ *	corresponding precision values to help simplex function properly. Performs fast-z or slow-z correction depending
+ *	upon user inputted value for simplex_mode. Defaults to slow-z correction.
  */
 void argo::performSimplexRoutine () {
+	// Normalize z-correction parameters with the precision that was applied to the image.
 	results.bestC1 /= precision;
 	results.bestC2 /= precision * precision;
 	results.bestC3 /= precision * precision * precision;
 
 	// These are how you should fill the x array. Use this initialization 
-	// if you haven't skipped the grid search
+	// if you haven't skipped the grid search.
+	// Normalize parameters with regards to precision.
 	grid_best[ 0 ] = results.bestA0 * precision;
 	grid_best[ 1 ] = results.bestB0 * precision;
 	grid_best[ 2 ] = results.bestA1;
@@ -835,13 +859,15 @@ void argo::performSimplexRoutine () {
 	grid_best[ 10 ] = results.bestC2;
 	grid_best[ 11 ] = results.bestC3;
 
-	// Setup precision for simplex.  
-	// These values are all based on the changes in the parameters that will cause at most a shift of 
-	// 0.1 pixel.
 	for ( int i = 0; i < 12; ++i ) {
 		simplex_best[ i ] = grid_best[ i ];
 	}
+	
 
+	/*
+	*	Precision array determines by how much the Nelder-Mead simplex routine adjusts individual parameters.
+	*	These values are all based on the changes in the parameters that will cause at most a shift of 0.1 pixel.
+	*/
 	precisionArr[ 0 ] = 0.1;
 	precisionArr[ 1 ] = 0.1;
 	precisionArr[ 2 ] = 0.1 / ( double ) images_store.orig_base->height;
@@ -855,12 +881,16 @@ void argo::performSimplexRoutine () {
 	precisionArr[ 10 ] = 0.1 * data_range / ( double ) ( images_store.orig_base->height * images_store.orig_base->height );
 	precisionArr[ 11 ] = 0.1 * data_range / ( double ) ( images_store.orig_base->height * images_store.orig_base->height * images_store.orig_base->height );
 
-	simplex( images_store.orig_base, images_store.orig_sliver, grid_best, simplex_best, true, precisionArr, simplex_reflect, simplex_contract, simplex_growth,
-			simplex_halt, simplex_iterations );
+	simplex( images_store.orig_base, images_store.orig_sliver, grid_best, simplex_best, simplex_mode, precisionArr, simplex_reflect, simplex_contract, simplex_growth,
+			simplex_iterations );
 }
 
 /**
- *	Performs final warping and outputting of images as files.
+ *	Use only for slow-z correction. This method is currently deprecated for fast-z correction. Image writing is done in 
+ *	simplex routine after r and c parameters are generated.
+ *
+ *	Performs final warping and outputting of images as files. The operation of this method depends on the global array simplex_best
+ *	being initialized and filled with the optimized parameters necessary for image correction.
  */
 void argo::performImageCorrection () {
 	// Perform final warp, and write the output tiff
@@ -871,7 +901,6 @@ void argo::performImageCorrection () {
 	FImage* final = new FImage( images_store.orig_base->width, images_store.orig_base->height, images_store.orig_base->metadata );
 	images_store.orig_base->warpBase( final, aterms, bterms, cterms, 1, interp_type );
 	
-
 	std::string finalstring = base_name;
 	std::basic_string < char > finalmarkerstring( "_corrected" );
 	finalstring.insert( finalstring.rfind( "." ), finalmarkerstring );
@@ -880,7 +909,10 @@ void argo::performImageCorrection () {
 }
 
 /**
- * Non-debugging versions of argo execution.
+ *	Non-debugging versions of argo execution.
+ *
+ *	@param	argc		The amount of command line arguments.
+ *	@param	argv		The command line arguments.
  */
 void argo::correctImages ( int argc, char* argv[] ) {
 	readInputParams( argc, argv );
@@ -893,11 +925,19 @@ void argo::correctImages ( int argc, char* argv[] ) {
 	performImageCorrection();
 }
 
+/**
+ *	Debugging version of argo execution.
+ *
+ *	@param	argc		The amount of command line arguments.
+ *	@param	argv		The command line arguments.
+ *	@param	verbose	Boolean flag indicating whether to display debugging information.
+ */
 void argo::correctImages ( int argc, char* argv[], bool verbose ) {
 	clock_t begintime = clock();
 	clock_t time0, time1;
 	bool debugmode = false;
 
+	FreeImage_Initialise();
 	time0 = clock();
 	readInputParams( argc, argv );
 	if ( debugmode ) {
@@ -946,14 +986,17 @@ void argo::correctImages ( int argc, char* argv[], bool verbose ) {
 		logSimplexRoutineInfo();
 	}
 
-	time0 = clock();
-	performImageCorrection();
-	time1 = clock();
-	times.image_write_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
+	if ( !simplex_mode ) {
+		time0 = clock();
+		performImageCorrection();
+		time1 = clock();
+		times.image_write_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
+	}
 
 	clock_t endtime = clock();
 	times.total_time = ( ( double ) endtime - ( double ) begintime ) / CLOCKS_PER_SEC;
 
+	FreeImage_DeInitialise();
 	if ( verbose ) {
 		logProgramInformation();
 	}

@@ -529,7 +529,11 @@ double fastZDifference( double vertex[], bool writeFile ) {
 		double sliver_max = warp_sliver->getMax();
 		double min_val = base_min < sliver_min ? base_min : sliver_min;
 		double max_val = base_max < sliver_max ? base_max : sliver_max;
-		double slope = 1 / ( max_val - min_val );
+		double slope = 1.0 / ( max_val - min_val );
+
+		printf( "Lower min value of both iamges : %f\n", min_val );
+		printf( "Lower max value of both images : %f\n", max_val );
+		printf( "Slope of displayable images : %f\n", slope );
 
 		// Write warped and corrected images.
 		warp_base->writeImage( "w_base.tif" );
@@ -1172,22 +1176,21 @@ void copySliver( FImage *_sliver ) {
 *	optimized or else 12 parameters will be optimized. Various simplex parameters are provided as well for reflection, contraction
  *	etc.
  *
- *	@param	_base	Input base image.
- *	@param	_sliver	Input sliver image.
+ *	@param	_base		Input base image.
+ *	@param	_sliver		Input sliver image.
  *	@param	input_vector	Original parameter values usually given by grid-search.
  *	@param	return_vector	An array the size of input_vector to store the final calculated values.
- *	@param	_fastZ	Boolean indicator that determines if we perform fast Z or slow Z correction.
- *	@param	precision
- *	@param	alpha
- *	@param	beta
+ *	@param	_fastZ		Boolean indicator that determines if we perform fast Z or slow Z correction.
+ *	@param	precision		The precision array.
+ *	@param	alpha		The simplex growth parameter.
+ *	@param	beta			The simplex
  *	@param	gamma
- *	@param	errhalt
  *	@param	maxi
  *
  *	@return		0 if success
  */
 int simplex( FImage *_base, FImage *_sliver, double input_vector[], double return_vector[], bool _fastZ, double precision[], double alpha, double beta, double gamma,
-			 double errhalt, int maxi ) {
+			int maxi ) {
 
 	fastZ = _fastZ;
 	int n;
@@ -1344,7 +1347,6 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	normalize_factors[ 6 ] = sliver->height * sliver->height * sliver->height;
 	normalize_factors[ 7 ] = sliver->height * sliver->height * sliver->height;
 
-	//while ( ( deviation >= errhalt ) && ( iterations < maxi + 1 ) ) {
 	while ( ( ( max_param_difference > 1e-13 ) || ( max_successive_difference >= 1e-10 ) ) && ( iterations < maxi + 1 ) ) {
 		debug = false;
 		/*new code*/

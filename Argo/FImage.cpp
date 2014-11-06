@@ -209,57 +209,72 @@ void FImage::set ( int x, int y, double value ) {
 
 /**
  *	Gets the range of the pixel values.
+ *
+ *	@return	The range of values contained within the image.
  */
 double FImage::getRange() {
-	double* temp = new double[ width * height ];
-	std::copy(data, data + width * height, temp);
-	std::sort( temp, temp + width * height );
-	int i = 0;
-	while ( temp[ i++ ] == -std::numeric_limits<double>::infinity() );
-	double min = temp[ i ];
-	double max = temp[ width * height - 1 ];
-	delete[] temp;
-	return ( max - min );
+	double minVal = std::numeric_limits<double>::infinity();
+	double maxVal = -std::numeric_limits<double>::infinity();
+	for ( int i = 0; i < width * height; ++i ) {
+		if ( ( data[ i ] < minVal )
+			 && ( minVal != -std::numeric_limits<double>::infinity() ) ) {
+			minVal = data[ i ];
+		}
+		if ( data[ i ] > maxVal ) {
+			maxVal = data[ i ];
+		}
+	}
+	return ( maxVal - minVal );
 }
 
 /**
  *	Gets the minimum pixel value.
+ *
+ *	@return	The minimum value.
  */
 double FImage::getMin() {
-	double* temp = new double[ width * height ];
-	std::copy( data, data + width * height, temp );
-	std::sort( temp, temp + width * height );
-	int i = 0;
-	while ( temp[ i++ ] == -std::numeric_limits<double>::infinity() );
-	double min = temp[ i ];
-	delete[] temp;
-	return ( min );
+	double minVal = std::numeric_limits<double>::infinity();
+	for ( int i = 0; i < width * height; ++i ) {
+		if ( ( data[ i ] < minVal )
+			 && ( data[ i ] != -std::numeric_limits<double>::infinity() ) ) {
+			minVal = data[ i ];
+		}
+	}
+	return ( minVal );
 }
 
 /**
  *	Gets the maximum pixel value.
+ *
+ *	@return	The maximum value.
  */
 double FImage::getMax() {
-	double* temp = new double[ width * height ];
-	std::copy( data, data + width * height, temp );
-	std::sort( temp, temp + width * height );
-	double max = temp[ width * height - 1 ];
-	delete[] temp;
-	return ( max );
+	double maxVal = -std::numeric_limits<double>::infinity();
+	for ( int i = 0; i < width * height; ++i ) {
+		if ( data[ i ] > maxVal ) {
+			maxVal = data[ i ];
+		}
+	}
+	return ( maxVal );
 }
 
 /**
  *	Writes the image to the given filename.
+ *	
+ *	@param	file		The name of the file
+ *
+ *	@return			True if succesful, false otherwise.
  */
 bool FImage::writeImage ( std::string file ) {
-	FreeImage_Initialise();
-	FIBITMAP *image = FreeImage_AllocateT( metadata.type, width, height );
+	FreeImage_Initialise();		// Initialize statically linked FreeImage instance.
+	FIBITMAP *image = FreeImage_AllocateT( metadata.type, width, height );	// Allocate memory for writing image.
 	if ( !image ) {
 		printf( "Failed to allocate memory to write image!\n" );
 		FreeImage_DeInitialise();
 		return ( false );
 	}
 
+	// Given the type of image, type-cast our double precision values and write to the image.
 	switch ( metadata.type ) {
 		case FIT_BITMAP:
 			for ( unsigned int y = 0; y < height; ++y ) {
@@ -306,10 +321,12 @@ bool FImage::writeImage ( std::string file ) {
 			break;
 	}
 
+	// Flip image if necessary.
 	if ( metadata.flipped ) {
 		FreeImage_FlipVertical( image );
 	}
 
+	// Attempt to save the image with the specified format to the filename given.
 	if ( !FreeImage_Save( metadata.format, image, file.c_str() ) ) {
 		printf( "Failed to save file!\n" );
 		FreeImage_Unload( image );
@@ -317,16 +334,22 @@ bool FImage::writeImage ( std::string file ) {
 		return ( false );
 	}
 
-	FreeImage_Unload( image );
-	FreeImage_DeInitialise();
+	FreeImage_Unload( image );	// Remove image from memory.
+	FreeImage_DeInitialise();	// Uninitialize statically linked FreeImage instance.
 	return ( true );
 }
 
 /**
  *	Writes a viewable image. This is useful for images with floating point values that cannot be viewed. We simply
  *	take all the values and alter their range to [0,1] such that they can be viewable as floating point grayscale.
+ *
+ *	@param	file		The name of the file.
+ *	@param	slope	The slope of the image.
+ *	@param	min		The minimum value within the image.
+ *
+ *	@return			True if succesful, false otherwise.
  */
-bool FImage::writeDisplayableImage( std::string file, double slope, double min ) {
+bool FImage::writeDisplayableImage( std::string file, double slope, double minVal ) {
 	FreeImage_Initialise();
 	FIBITMAP *image = FreeImage_AllocateT( FIT_FLOAT, width, height );
 	if ( !image ) {
@@ -338,8 +361,12 @@ bool FImage::writeDisplayableImage( std::string file, double slope, double min )
 	for ( unsigned int y = 0; y < height; ++y ) {
 		float *bits = ( float * ) FreeImage_GetScanLine( image, y );
 		for ( unsigned int x = 0; x < width; ++x ) {
-			if ( data[ x + width * y ] == -std::numeric_limits<double>::infinity() ) continue;
-			bits[ x ] = ( float ) ( slope * ( data[ x + width * y ] - min ) );
+			if ( data[ x + width * y ] == -std::numeric_limits<double>::infinity() ) {
+				bits[ x ] = -std::numeric_limits<float>::infinity();
+			}
+			else {
+				bits[ x ] = ( float ) ( slope * ( data[ x + width * y ] - minVal ) );
+			}
 		}
 	}
 
@@ -363,6 +390,7 @@ bool FImage::writeDisplayableImage( std::string file, double slope, double min )
  *	
  *	@param	x	coordinate.
  *	@param	y	coordinate.
+ *
  *	@return		pixel value.
  */
 double FImage::interpPixel( double x, double y, unsigned int type ) {
@@ -390,6 +418,7 @@ double FImage::interpPixel( double x, double y, unsigned int type ) {
  *
  *	@param	x	coordinate.
  *	@param	y	coordinate.
+ *
  *	@return		pixel value.
  */
 double FImage::bilinear( double x, double y ) {
@@ -434,6 +463,7 @@ double FImage::bilinear( double x, double y ) {
  *
  *	@param	x	coordinate.
  *	@param	y	coordinate.
+ *
  *	@return		pixel value.
  */
 double FImage::nearestNeighbor( double x, double y ) {
@@ -445,6 +475,7 @@ double FImage::nearestNeighbor( double x, double y ) {
  *
  *	@param	x	coordinate.
  *	@param	y	coordinate.
+ *
  *	@return		pixel value.
  */
 double FImage::cubic( double x, double y ) {
@@ -503,6 +534,7 @@ double FImage::cubic( double x, double y ) {
  *
  *	@param	x	coordinate.
  *	@param	y	coordinate.
+ *
  *	@return		pixel value.
  */
 double FImage::bspline( double x, double y, int type ) {
