@@ -1,15 +1,51 @@
-Argo Version 1.2.
+Argo Version 1.3.
 
 Compile using Visual Studio 2013.
-Requires the latest version of Eigen and Intel Thread Building Blocks (TBB).
+Requires the latest version of Eigen, Intel Thread Building Blocks (TBB), FreeImage and an OpenCL SDK.
 
 The latest version of Eigen can be retreived from : http://eigen.tuxfamily.org/.
-Similarly, the latest version of TBB can be retreived from : https://www.threadingbuildingblocks.org/.
+The latest version of TBB can be retreived from : https://www.threadingbuildingblocks.org/.
+The latest version of FreeImage can be retreived from : http://freeimage.sourceforge.net/.
 
-The VS2013 Solution looks for a "tbb" and "Eigen" folder one directory above the solution's directory as such :
+The following needs to be configured properly in order for the Solution to compile successfully :
 
-	Solution folder : "\Solution\Argo.sln"
-	tbb folder : "\Solution\..\tbb"
-	Eigen folder : "\Solution\..\Eigen"
+1)	Add in TBB's includes path, Eigen's path, and the OpenCL SDK's include path to :
 
-Alternatively, you can configure the solution itself by manually setting the required include folders for the compiler and linker.
+	Project | Properties | Configuration Properties | C/C++ | General | Additional Include Directories
+
+
+2)	Add "FREEIMAGE_LIB" to :
+
+	Project | Properties | Configuration Properties | C/C++ | Preprocessor | Preprocessor Definitions
+
+
+3)	Add the appropriate directories for 32-bit/64-bit library files for TBB and OpenCL into
+	the appropriate Project Platform for each Project Configuration in :
+
+	Project | Properties | Configuration Properties | Linker | General | Additional Library Directories
+
+
+4)	Add the appropriate OpenCL and FreeImage library files (both debug and release) to :
+
+	Project | Properties | Configuration Properties | Linker | Input | Additional Dependencies
+
+
+5)	Lastly, the configuration has a custom build step which can be modified to your purpose or removed
+	such that you may implement it as you see fit. The dynamically linkable libraries for TBB need to be
+	made available to the binaries compiled with this project. This can be done using custom paths or
+	manually moving the files. At present there is a custom build-step that achieves this at :
+
+	Project | Properties | Configuration Properties | Custom Build Step | General
+
+
+The FreeImage library needs to be statically linked in order to work properly with this solution.
+It can be made to work with dynamic linking given some modifications. Additionally, the OpenCL SDK
+currently in use was AMD's SDK. Thus there are some AMD dependent compiler flags in some of the kernels
+that may need to be removed or configured appropriately. The OpenCL kernels will require specific
+tuning in order to execute properly. Please refer to your hardware for specifics. The kernels may
+need to be modified slightly to make them work. The kernels have been tested with Intel CPU's and
+with AMD's R9 290 GPU. The kernels have been modified in the past to work with Nvidia GPU's with success.
+
+
+Please refer to documentation provided by FreeImage, Intel's TBB, and Eigen for general questions about
+those libraries.
