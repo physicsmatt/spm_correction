@@ -288,8 +288,8 @@ void initializeOpenCLContext() {
  */
 double fastZDifference( double vertex[], bool writeFile ) {
 	// Precomputation of bounds and weights necessary.
-	double As[ 4 ] = { vertex[ 0 ], vertex[ 2 ], vertex[ 4 ], vertex[ 6 ] };
-	double Bs[ 4 ] = { vertex[ 1 ], vertex[ 3 ], vertex[ 5 ], vertex[ 7 ] };
+	double As[ 5 ] = { vertex[ 0 ], vertex[ 2 ], vertex[ 4 ], vertex[ 6 ], vertex[ 8 ] };
+	double Bs[ 5 ] = { vertex[ 1 ], vertex[ 3 ], vertex[ 5 ], vertex[ 7 ], vertex[ 9 ] };
 
 	int xbp = base->width / 2 - sliver->width / 2;
 
@@ -300,7 +300,7 @@ double fastZDifference( double vertex[], bool writeFile ) {
 	int base_minY = 0;
 	int base_maxY = base->height - 1;
 	while ( !exists ) {
-		if ( maxX - As[ 1 ] * maxX > sliver->width - 1 ) {
+		if ( maxX - As[ 4 ] * maxX > sliver->width - 1 ) {
 			maxX--;
 		}
 		else {
@@ -310,13 +310,13 @@ double fastZDifference( double vertex[], bool writeFile ) {
 	exists = false;
 	while ( !exists ) {
 		bool exist2 = false;
-		if ( sliver_maxY + -( Bs[ 1 ] - 1 ) * maxX > sliver->height - 1 ) {
+		if ( sliver_maxY + -( Bs[ 4 ] - 1 ) * maxX > sliver->height - 1 ) {
 			sliver_maxY--;
 		}
 		else {
 			exist2 = true;
 		}
-		if ( sliver_minY + -( Bs[ 1 ] - 1 ) * maxX < 0 ) {
+		if ( sliver_minY + -( Bs[ 4 ] - 1 ) * maxX < 0 ) {
 			sliver_minY++;
 		}
 		else {
@@ -351,14 +351,14 @@ double fastZDifference( double vertex[], bool writeFile ) {
 
 	int maxY, minY;
 	double weightTop, weightBottom, weightRight;
-	weightRight = ceil( ( maxX - As[ 1 ] * maxX ) ) - ( maxX - As[ 1 ] * maxX );
+	weightRight = ceil( ( maxX - As[ 4 ] * maxX ) ) - ( maxX - As[ 4 ] * maxX );
 	if ( base_maxY < sliver_maxY ) {
 		maxY = base_maxY;	// Ceil for weight
 		weightTop = ceil( Bs[ 0 ] + Bs[ 1 ] * maxY + Bs[ 2 ] * maxY + Bs[ 3 ] * maxY ) - ( Bs[ 0 ] + Bs[ 1 ] * maxY + Bs[ 2 ] * maxY + Bs[ 3 ] * maxY );
 	}
 	else if ( base_maxY > sliver_maxY ) {
 		maxY = sliver_maxY;	// Ceil for weight
-		weightTop = ceil( maxY - ( Bs[ 1 ] - 1 ) * maxX ) - ( maxY - ( Bs[ 1 ] - 1 ) * maxX );
+		weightTop = ceil( maxY - ( Bs[ 4 ] - 1 ) * maxX ) - ( maxY - ( Bs[ 4 ] - 1 ) * maxX );
 	}
 	else {
 		maxY = sliver_maxY;
@@ -367,7 +367,7 @@ double fastZDifference( double vertex[], bool writeFile ) {
 			weightTop = ceil( Bs[ 0 ] + Bs[ 1 ] * maxY + Bs[ 2 ] * maxY + Bs[ 3 ] * maxY ) - ( Bs[ 0 ] + Bs[ 1 ] * maxY + Bs[ 2 ] * maxY + Bs[ 3 ] * maxY );
 		}
 		else {
-			weightTop = ceil( maxY - ( Bs[ 1 ] - 1 ) * maxX ) - ( maxY - ( Bs[ 1 ] - 1 ) * maxX );
+			weightTop = ceil( maxY - ( Bs[ 4 ] - 1 ) * maxX ) - ( maxY - ( Bs[ 4 ] - 1 ) * maxX );
 		}
 	}
 
@@ -377,13 +377,13 @@ double fastZDifference( double vertex[], bool writeFile ) {
 	}
 	else if ( base_minY < sliver_minY ) {
 		minY = sliver_minY;	// Floor for weight
-		weightBottom = ( minY - ( Bs[ 1 ] - 1 ) * maxX ) - floor( ( minY - ( Bs[ 1 ] - 1 ) * maxX ) );
+		weightBottom = ( minY - ( Bs[ 4 ] - 1 ) * maxX ) - floor( ( minY - ( Bs[ 4 ] - 1 ) * maxX ) );
 	}
 	else {
 		minY = sliver_minY;
-		if ( ( minY - ( Bs[ 1 ] - 1 ) * maxX ) - floor( ( minY - ( Bs[ 1 ] - 1 ) * maxX ) ) <
+		if ( ( minY - ( Bs[ 4 ] - 1 ) * maxX ) - floor( ( minY - ( Bs[ 4 ] - 1 ) * maxX ) ) <
 			 ( Bs[ 0 ] + Bs[ 1 ] * minY + Bs[ 2 ] * minY + Bs[ 3 ] * minY ) - floor( ( Bs[ 0 ] + Bs[ 1 ] * minY + Bs[ 2 ] * minY + Bs[ 3 ] * minY ) ) ) {
-			weightBottom = ( minY - ( Bs[ 1 ] - 1 ) * maxX ) - floor( ( minY - ( Bs[ 1 ] - 1 ) * maxX ) );
+			weightBottom = ( minY - ( Bs[ 4 ] - 1 ) * maxX ) - floor( ( minY - ( Bs[ 4 ] - 1 ) * maxX ) );
 		}
 		else {
 			weightBottom = ( Bs[ 0 ] + Bs[ 1 ] * minY + Bs[ 2 ] * minY + Bs[ 3 ] * minY ) - floor( ( Bs[ 0 ] + Bs[ 1 ] * minY + Bs[ 2 ] * minY + Bs[ 3 ] * minY ) );
@@ -564,8 +564,8 @@ double fastZDifference( double vertex[], bool writeFile ) {
 		double ux[ 4 ]; // these are the weight for the rows
 		double uy[ 4 ]; // these are the weights for the columns
 
-		double yoffset = -( Bs[ 1 ] - 1 ) * x;
-		double origX = x - As[ 1 ] * x;
+		double yoffset = -( Bs[ 4 ] - 1 ) * x;
+		double origX = x - As[ 4 ] * x;
 
 		sx[ 0 ] = abs( origX - floor( origX - 1 ) ); // these get the distances for each row and column from the initial point, positive
 		sy[ 0 ] = abs( yoffset - floor( yoffset - 1 ) );
@@ -793,8 +793,8 @@ double fastZDifference( double vertex[], bool writeFile ) {
 		double ux[ 4 ]; // these are the weight for the rows
 		double uy[ 4 ]; // these are the weights for the columns
 
-		double yoffset = -( Bs[ 1 ] - 1 ) * x;
-		double origX = x - As[ 1 ] * x;
+		double yoffset = -( Bs[ 4 ] - 1 ) * x;
+		double origX = x - As[ 4 ] * x;
 
 		/////////////////////////////////////////////////////////////////////////////////////
 
@@ -1001,6 +1001,8 @@ double fastZDifference( double vertex[], bool writeFile ) {
 		FImage *warp_base = new FImage( base->width, base->height, base->metadata );
 		FImage *warp_sliver = new FImage( sliver->width, sliver->height, sliver->metadata );
 		base->warpBase ( warp_base, As, Bs, Cs, 1, S_WRITE_INTERP );
+		As[ 1 ] = As[ 4 ];
+		Bs[ 1 ] = Bs[ 4 ];
 		sliver->warpSliver ( warp_sliver, As, Bs, Cs, S_WRITE_INTERP );
 
 		// Apply RC Values.
@@ -1195,7 +1197,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	fastZ = _fastZ;
 	int n;
 	if ( fastZ ) {
-		n = 8;
+		n = 10;
 	}
 	else {
 		n = 12;
@@ -1347,7 +1349,11 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	normalize_factors[ 6 ] = sliver->height * sliver->height * sliver->height;
 	normalize_factors[ 7 ] = sliver->height * sliver->height * sliver->height;
 
-	while ( ( ( max_param_difference > 1e-13 ) || ( max_successive_difference >= 1e-10 ) ) && ( iterations < maxi + 1 ) ) {
+	normalize_factors[ 8 ] = sliver->height;
+	normalize_factors[ 9 ] = sliver->height;
+
+	while ( ( ( max_param_difference > 1e-13 ) || ( max_successive_difference >= 1e-12 ) ) && ( iterations < maxi + 1 ) ) {
+	// while ( iterations < maxi + 1 ) {
 		debug = false;
 		/*new code*/
 		///*******************************************************///
@@ -1621,6 +1627,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 			printf( "Current Best Parameters : \n" );
 			printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 0 ], simplex_matrix[ min_index ][ 2 ], simplex_matrix[ min_index ][ 4 ], simplex_matrix[ min_index ][ 6 ] );
 			printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 1 ], simplex_matrix[ min_index ][ 3 ], simplex_matrix[ min_index ][ 5 ], simplex_matrix[ min_index ][ 7 ] );
+			printf( "%e %e\n", simplex_matrix[ min_index ][ 8 ], simplex_matrix[ min_index ][ 9 ] );
 			// printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 8 ], simplex_matrix[ min_index ][ 9 ], simplex_matrix[ min_index ][ 10 ], simplex_matrix[ min_index ][ 11 ] );
 			for ( int i = 0; i < n + 1; ++i ) {
 				printf( "Difference %d : %.20e\n", i, differences[ i ] );
@@ -1635,6 +1642,11 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 			printf( "Normalized B2 Difference : %.20e\n", param_differences[ 5 ] );
 			printf( "Normalized A3 Difference : %.20e\n", param_differences[ 6 ] );
 			printf( "Normalized B3 Difference : %.20e\n", param_differences[ 7 ] );
+
+			printf( "Normalized sA1 Difference : %.20e\n", param_differences[ 8 ] );
+			printf( "Normalized sB1 Difference : %.20e\n", param_differences[ 9 ] );
+
+
 			printf( "Highest Parameter Difference : %.20e\n", max_param_difference );
 			printf( "Highest Successive Difference Resulting from Param %d : %.20e\n", limiting_param, max_successive_difference );
 			printf( "\n" );
@@ -1680,6 +1692,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	printf( "\n\nSimplex took %ld evaluations.\n", difference_evals );
 	printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 0 ], simplex_matrix[ min_index ][ 2 ], simplex_matrix[ min_index ][ 4 ], simplex_matrix[ min_index ][ 6 ] );
 	printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 1 ], simplex_matrix[ min_index ][ 3 ], simplex_matrix[ min_index ][ 5 ], simplex_matrix[ min_index ][ 7 ] );
+	printf( "%e %e\n", simplex_matrix[ min_index ][ 8 ], simplex_matrix[ min_index ][ 9 ] );
 
 
 #ifdef S_MODE_OPENCL

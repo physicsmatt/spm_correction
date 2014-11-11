@@ -186,6 +186,8 @@ class argo {
 		void initBetaGamma ();
 		// Performs the Grid Search routine.
 		void performGridSearch ( bool verbose );
+		// Deletes globals for Grid Search routine
+		void finalizeGridSearch();
 		// Performs the Simplex routine.
 		void performSimplexRoutine ();
 		// Performs the final image correction wtih the data calculated.

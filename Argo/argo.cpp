@@ -226,7 +226,12 @@ void argo::logSimplexRoutineInfo () {
 	printf( "Best B1 : %f\n", simplex_best[ 3 ] - 1 );
 	printf( "Best B2 : %e\n", simplex_best[ 5 ] );
 	printf( "Best B3 : %e\n", simplex_best[ 7 ] );
-	printf( "Best C0 : %e\nBest C1: %e\nBest C2: %e\nBest C3: %e\n", simplex_best[ 8 ], simplex_best[ 9 ], simplex_best[ 10 ], simplex_best[ 11 ] );
+	if ( !simplex_mode ) {
+		printf( "Best C0 : %e\nBest C1 : %e\nBest C2 : %e\nBest C3 : %e\n", simplex_best[ 8 ], simplex_best[ 9 ], simplex_best[ 10 ], simplex_best[ 11 ] );
+	}
+	else {
+		printf( "Best Sliver A1 : %e\nBest Sliver B1 : %e\n", simplex_best[ 8 ], simplex_best[ 9 ] );
+	}
 	printf( "Time for Simplex Routine : \t %f seconds\n", times.simplex_time );
 	printf( "\n" );
 }
@@ -244,7 +249,13 @@ void argo::logProgramInformation () {
 		fprintf( paramfile, "Simplex Routine Parameters : \n" );
 		fprintf( paramfile, "A0 = %e;\nA1 = %e;\nA2 = %e;\nA3 = %e;\n", simplex_best[ 0 ], simplex_best[ 2 ], simplex_best[ 4 ], simplex_best[ 6 ] );
 		fprintf( paramfile, "B0 = %e;\nB1 = %e;\nB2 = %e;\nB3 = %e;\n", simplex_best[ 1 ], simplex_best[ 3 ] - 1.0, simplex_best[ 5 ], simplex_best[ 7 ] );
-		fprintf( paramfile, "C0 = %e;\nC1 = %e;\nC2 = %e;\nC3 = %e;\n", simplex_best[ 8 ], simplex_best[ 9 ], simplex_best[ 10 ], simplex_best[ 11 ] );
+		if ( !simplex_mode ) {
+			fprintf( paramfile, "C0 = %e;\nC1 = %e;\nC2 = %e;\nC3 = %e;\n", simplex_best[ 8 ], simplex_best[ 9 ], simplex_best[ 10 ], simplex_best[ 11 ] );
+		}
+		else {
+			fprintf( paramfile, "Sliver A1 = %e;\nSliver B1 = %e;\n", simplex_best[ 8 ], simplex_best[ 9 ] - 1.0 );
+		}
+		
 		fprintf( paramfile, "\n" );
 		fprintf( paramfile, "Grid Search Parameters : \n" );
 		fprintf( paramfile, "A0 = %e;\nA1 = %e;\nA2 = %e;\nA3 = %e;\n", grid_best[ 0 ], grid_best[ 2 ], grid_best[ 4 ], grid_best[ 6 ] );
@@ -832,6 +843,18 @@ void argo::performGridSearch(bool verbose)	{
 	delete[] yb6_arr;
 }
 
+void argo::finalizeGridSearch() {
+	delete[] beta_gamma_store.difflets;
+	delete[] beta_gamma_store.dynamic_diffs;
+	delete[] combos.A_combos;
+	delete[] combos.B_combos;
+
+	beta_gamma_store.difflets = 0;
+	beta_gamma_store.dynamic_diffs = 0;
+	combos.A_combos = 0;
+	combos.B_combos = 0;
+}
+
 /**
  *	Makes the call to simplex, taking in all values calculated by grid-search previously and passing them over along with
  *	corresponding precision values to help simplex function properly. Performs fast-z or slow-z correction depending
@@ -839,9 +862,30 @@ void argo::performGridSearch(bool verbose)	{
  */
 void argo::performSimplexRoutine () {
 	// Normalize z-correction parameters with the precision that was applied to the image.
-	results.bestC1 /= precision;
-	results.bestC2 /= precision * precision;
-	results.bestC3 /= precision * precision * precision;
+	if ( !simplex_mode ) {
+		results.bestC1 /= precision;
+		results.bestC2 /= precision * precision;
+		results.bestC3 /= precision * precision * precision;
+
+		grid_best[ 8 ] = results.bestC0;
+		grid_best[ 9 ] = results.bestC1;
+		grid_best[ 10 ] = results.bestC2;
+		grid_best[ 11 ] = results.bestC3;
+
+		precisionArr[ 8 ] = 0.1 * data_range;
+		precisionArr[ 9 ] = 0.1 * data_range / ( double ) images_store.orig_base->height;
+		precisionArr[ 10 ] = 0.1 * data_range / ( double ) ( images_store.orig_base->height * images_store.orig_base->height );
+		precisionArr[ 11 ] = 0.1 * data_range / ( double ) ( images_store.orig_base->height * images_store.orig_base->height * images_store.orig_base->height );
+	}
+	else {
+		grid_best[ 8 ] = results.bestA1;
+		grid_best[ 9 ] = results.bestB1 + 1;
+
+		precisionArr[ 8 ] = 0.1 / ( double ) images_store.orig_base->height;
+		precisionArr[ 9 ] = 0.1 / ( double ) images_store.orig_base->height;
+	}
+
+
 
 	// These are how you should fill the x array. Use this initialization 
 	// if you haven't skipped the grid search.
@@ -854,10 +898,7 @@ void argo::performSimplexRoutine () {
 	grid_best[ 5 ] = results.bestB2 / precision;
 	grid_best[ 6 ] = results.bestA3 / ( precision * precision );
 	grid_best[ 7 ] = results.bestB3 / ( precision * precision );
-	grid_best[ 8 ] = results.bestC0;
-	grid_best[ 9 ] = results.bestC1;
-	grid_best[ 10 ] = results.bestC2;
-	grid_best[ 11 ] = results.bestC3;
+
 
 	for ( int i = 0; i < 12; ++i ) {
 		simplex_best[ i ] = grid_best[ i ];
@@ -876,10 +917,6 @@ void argo::performSimplexRoutine () {
 	precisionArr[ 5 ] = 0.1 / ( double ) ( images_store.orig_base->height * images_store.orig_base->height );
 	precisionArr[ 6 ] = 0.1 / ( double ) ( images_store.orig_base->height * images_store.orig_base->height * images_store.orig_base->height );
 	precisionArr[ 7 ] = 0.1 / ( double ) ( images_store.orig_base->height * images_store.orig_base->height * images_store.orig_base->height );
-	precisionArr[ 8 ] = 0.1 * data_range;
-	precisionArr[ 9 ] = 0.1 * data_range / ( double ) images_store.orig_base->height;
-	precisionArr[ 10 ] = 0.1 * data_range / ( double ) ( images_store.orig_base->height * images_store.orig_base->height );
-	precisionArr[ 11 ] = 0.1 * data_range / ( double ) ( images_store.orig_base->height * images_store.orig_base->height * images_store.orig_base->height );
 
 	simplex( images_store.orig_base, images_store.orig_sliver, grid_best, simplex_best, simplex_mode, precisionArr, simplex_reflect, simplex_contract, simplex_growth,
 			simplex_iterations );
@@ -921,6 +958,7 @@ void argo::correctImages ( int argc, char* argv[] ) {
 	initCombos();
 	initBetaGamma();
 	performGridSearch( false );
+	finalizeGridSearch();
 	performSimplexRoutine();
 	performImageCorrection();
 }
@@ -973,12 +1011,14 @@ void argo::correctImages ( int argc, char* argv[], bool verbose ) {
 	time1 = clock();
 	times.grid_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
+
 	if ( verbose ) {
 		logGridSearchInfo();
 	}
 
 	time0 = clock();
 	performSimplexRoutine();
+	finalizeGridSearch();
 	time1 = clock();
 	times.simplex_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
