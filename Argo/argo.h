@@ -148,10 +148,10 @@ class argo {
 		} combos;
 
 		// Number of parameters to be optimized
-		int n = 12;
-		double grid_best[ 12 ];
-		double simplex_best[ 12 ];
-		double precisionArr[ 12 ];
+		int n = 14;
+		double grid_best[ 14 ];
+		double simplex_best[ 14 ];
+		double precisionArr[ 14 ];
 
 		/**
 		 *	Debugging and non-debugging versions of argo execution.

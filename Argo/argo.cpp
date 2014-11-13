@@ -251,6 +251,7 @@ void argo::logProgramInformation () {
 		fprintf( paramfile, "B0 = %e;\nB1 = %e;\nB2 = %e;\nB3 = %e;\n", simplex_best[ 1 ], simplex_best[ 3 ] - 1.0, simplex_best[ 5 ], simplex_best[ 7 ] );
 		if ( !simplex_mode ) {
 			fprintf( paramfile, "C0 = %e;\nC1 = %e;\nC2 = %e;\nC3 = %e;\n", simplex_best[ 8 ], simplex_best[ 9 ], simplex_best[ 10 ], simplex_best[ 11 ] );
+			fprintf( paramfile, "Sliver A1 = %e;\nSliver B1 = %e;\n", simplex_best[ 12 ], simplex_best[ 13 ] - 1.0 );
 		}
 		else {
 			fprintf( paramfile, "Sliver A1 = %e;\nSliver B1 = %e;\n", simplex_best[ 8 ], simplex_best[ 9 ] - 1.0 );
@@ -876,6 +877,12 @@ void argo::performSimplexRoutine () {
 		precisionArr[ 9 ] = 0.1 * data_range / ( double ) images_store.orig_base->height;
 		precisionArr[ 10 ] = 0.1 * data_range / ( double ) ( images_store.orig_base->height * images_store.orig_base->height );
 		precisionArr[ 11 ] = 0.1 * data_range / ( double ) ( images_store.orig_base->height * images_store.orig_base->height * images_store.orig_base->height );
+
+		grid_best[ 12 ] = results.bestA1;
+		grid_best[ 13 ] = results.bestB1 + 1;
+
+		precisionArr[ 12 ] = 0.1 / ( double ) images_store.orig_base->height;
+		precisionArr[ 13 ] = 0.1 / ( double ) images_store.orig_base->height;
 	}
 	else {
 		grid_best[ 8 ] = results.bestA1;
@@ -900,7 +907,7 @@ void argo::performSimplexRoutine () {
 	grid_best[ 7 ] = results.bestB3 / ( precision * precision );
 
 
-	for ( int i = 0; i < 12; ++i ) {
+	for ( int i = 0; i < n; ++i ) {
 		simplex_best[ i ] = grid_best[ i ];
 	}
 	
@@ -935,14 +942,33 @@ void argo::performImageCorrection () {
 	double bterms[ 4 ] = { simplex_best[ 1 ], simplex_best[ 3 ], simplex_best[ 5 ], simplex_best[ 7 ] };
 	double cterms[ 4 ] = { simplex_best[ 8 ], simplex_best[ 9 ], simplex_best[ 10 ], simplex_best[ 11 ] };
 
-	FImage* final = new FImage( images_store.orig_base->width, images_store.orig_base->height, images_store.orig_base->metadata );
-	images_store.orig_base->warpBase( final, aterms, bterms, cterms, 1, interp_type );
+	FImage* warp_base = new FImage( images_store.orig_base->width, images_store.orig_base->height, images_store.orig_base->metadata );
+	images_store.orig_base->warpBase( warp_base, aterms, bterms, cterms, 1, interp_type );
+
+	aterms[ 1 ] = simplex_best[ 12 ];
+	bterms[ 1 ] = simplex_best[ 13 ];
+
+	FImage* warp_sliver = new FImage( images_store.orig_sliver->width, images_store.orig_sliver->height, images_store.orig_sliver->metadata );
+	images_store.orig_sliver->warpSliver( warp_sliver, aterms, bterms, cterms, interp_type );
 	
-	std::string finalstring = base_name;
-	std::basic_string < char > finalmarkerstring( "_corrected" );
-	finalstring.insert( finalstring.rfind( "." ), finalmarkerstring );
-	final->writeImage( finalstring );
-	delete final;
+	// Write warped and corrected images.
+	warp_base->writeImage( "w_base.tif" );
+	warp_sliver->writeImage( "w_sliver.tif" );
+
+	double base_min = warp_base->getMin();
+	double base_max = warp_base->getMax();
+	double sliver_min = warp_sliver->getMin();
+	double sliver_max = warp_sliver->getMax();
+	double min_val = base_min < sliver_min ? base_min : sliver_min;
+	double max_val = base_max < sliver_max ? base_max : sliver_max;
+	double slope = 1.0 / ( max_val - min_val );
+
+	// Write viewable images.
+	warp_base->writeDisplayableImage( "dw_base.tif", slope, min_val );
+	warp_sliver->writeDisplayableImage( "dw_sliver.tif", slope, min_val );
+
+	delete warp_base;
+	delete warp_sliver;
 }
 
 /**

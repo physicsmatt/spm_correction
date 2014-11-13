@@ -363,7 +363,7 @@ double fastZDifference( double vertex[], bool writeFile ) {
 	else {
 		maxY = sliver_maxY;
 		if ( ceil( Bs[ 0 ] + Bs[ 1 ] * maxY + Bs[ 2 ] * maxY + Bs[ 3 ] * maxY ) - ( Bs[ 0 ] + Bs[ 1 ] * maxY + Bs[ 2 ] * maxY + Bs[ 3 ] * maxY ) <
-			 ceil( maxY - ( Bs[ 1 ] - 1 ) * maxX ) - ( maxY - ( Bs[ 1 ] - 1 ) * maxX ) ) {
+			 ceil( maxY - ( Bs[ 4 ] - 1 ) * maxX ) - ( maxY - ( Bs[ 4 ] - 1 ) * maxX ) ) {
 			weightTop = ceil( Bs[ 0 ] + Bs[ 1 ] * maxY + Bs[ 2 ] * maxY + Bs[ 3 ] * maxY ) - ( Bs[ 0 ] + Bs[ 1 ] * maxY + Bs[ 2 ] * maxY + Bs[ 3 ] * maxY );
 		}
 		else {
@@ -1067,7 +1067,9 @@ double slowZDifference( double vertex[] ) {
 	difference_evals++;  //increment global variable used to count function evaluations
 
 	double sum = 0;
+	double sum_error = 0;
 	double area = 0;
+	double area_error = 0;
 	int basexstart = basesize[ 0 ] / 2 - sliversize[ 0 ] / 2;
 	//	float ymin=0.0,ymax=(float) sliversize[1]-1;
 	double ymin = 0.0, ymax = ( double ) sliversize[ 1 ] - 1;
@@ -1087,8 +1089,8 @@ double slowZDifference( double vertex[] ) {
 		for ( int xs = 0; xs < sliversize[ 0 ]; ++xs ) {   //fix so not starting at zero every time, only goes as far as needed
 			//reverse the linear transform to fix sliver drift
 			double weight;
-			double ysp = ( double ) ( ys + ( vertex[ 3 ] - 1.0 )*xs );//be sure to get these signs correct!
-			double xsp = ( double ) ( xs + vertex[ 2 ] * xs );//7/2/2008; I think this should be +.
+			double ysp = ( double ) ( ys + ( vertex[ 13 ] - 1.0 )*xs );//be sure to get these signs correct!
+			double xsp = ( double ) ( xs + vertex[ 12 ] * xs );//7/2/2008; I think this should be +.
 			//double ysp = (double) (ys); //- (vertex[3]-1.0)*xs);  //be sure to get these signs correct!
 			//double xsp = (double) (xs); //- vertex[2]*xs);
 			double ysp2 = ysp*ysp;
@@ -1115,8 +1117,17 @@ double slowZDifference( double vertex[] ) {
 #ifdef S_MODE_TBB
 				cs.lock();
 #endif
-				sum += diff * diff * weight;
-				area += weight;
+				double y = diff * diff * weight - sum_error;
+				double t = sum + y;
+				sum_error = ( t - sum ) - y;
+				sum = t;
+				// sum += diff * diff * weight;
+
+				y = weight - area_error;
+				t = area + y;
+				area_error = ( t - area ) - y;
+				area = t;
+				// area += weight;
 #ifdef S_MODE_TBB
 				cs.unlock();
 #endif
@@ -1200,7 +1211,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 		n = 10;
 	}
 	else {
-		n = 12;
+		n = 14;
 	}
 
 	int i, j;
@@ -1348,9 +1359,19 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	normalize_factors[ 5 ] = sliver->height * sliver->height;
 	normalize_factors[ 6 ] = sliver->height * sliver->height * sliver->height;
 	normalize_factors[ 7 ] = sliver->height * sliver->height * sliver->height;
+	if ( fastZ ) {
+		normalize_factors[ 8 ] = sliver->height;
+		normalize_factors[ 9 ] = sliver->height;
+	}
+	else {
+		normalize_factors[ 8 ] = 1;
+		normalize_factors[ 9 ] = 1;
+		normalize_factors[ 10 ] = 1;
+		normalize_factors[ 11 ] = 1;
+		normalize_factors[ 12 ] = sliver->height;
+		normalize_factors[ 13 ] = sliver->height;
+	}
 
-	normalize_factors[ 8 ] = sliver->height;
-	normalize_factors[ 9 ] = sliver->height;
 
 	while ( ( ( max_param_difference > 1e-13 ) || ( max_successive_difference >= 1e-12 ) ) && ( iterations < maxi + 1 ) ) {
 	// while ( iterations < maxi + 1 ) {
@@ -1627,8 +1648,13 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 			printf( "Current Best Parameters : \n" );
 			printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 0 ], simplex_matrix[ min_index ][ 2 ], simplex_matrix[ min_index ][ 4 ], simplex_matrix[ min_index ][ 6 ] );
 			printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 1 ], simplex_matrix[ min_index ][ 3 ], simplex_matrix[ min_index ][ 5 ], simplex_matrix[ min_index ][ 7 ] );
-			printf( "%e %e\n", simplex_matrix[ min_index ][ 8 ], simplex_matrix[ min_index ][ 9 ] );
-			// printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 8 ], simplex_matrix[ min_index ][ 9 ], simplex_matrix[ min_index ][ 10 ], simplex_matrix[ min_index ][ 11 ] );
+			if ( fastZ ) {
+				printf( "%e %e\n", simplex_matrix[ min_index ][ 8 ], simplex_matrix[ min_index ][ 9 ] );
+			}
+			else {
+				printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 8 ], simplex_matrix[ min_index ][ 9 ], simplex_matrix[ min_index ][ 10 ], simplex_matrix[ min_index ][ 11 ] );
+			}
+
 			for ( int i = 0; i < n + 1; ++i ) {
 				printf( "Difference %d : %.20e\n", i, differences[ i ] );
 			}
@@ -1642,9 +1668,18 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 			printf( "Normalized B2 Difference : %.20e\n", param_differences[ 5 ] );
 			printf( "Normalized A3 Difference : %.20e\n", param_differences[ 6 ] );
 			printf( "Normalized B3 Difference : %.20e\n", param_differences[ 7 ] );
-
-			printf( "Normalized sA1 Difference : %.20e\n", param_differences[ 8 ] );
-			printf( "Normalized sB1 Difference : %.20e\n", param_differences[ 9 ] );
+			if ( fastZ ) {
+				printf( "Normalized sA1 Difference : %.20e\n", param_differences[ 8 ] );
+				printf( "Normalized sB1 Difference : %.20e\n", param_differences[ 9 ] );
+			}
+			else {
+				printf( "Normalized C0 Difference : %.20e\n", param_differences[ 8 ] );
+				printf( "Normalized C1 Difference : %.20e\n", param_differences[ 9 ] );
+				printf( "Normalized C2 Difference : %.20e\n", param_differences[ 10 ] );
+				printf( "Normalized C3 Difference : %.20e\n", param_differences[ 11 ] );
+				printf( "Normalized sA1 Difference : %.20e\n", param_differences[ 12 ] );
+				printf( "Normalized sB1 Difference : %.20e\n", param_differences[ 13 ] );
+			}
 
 
 			printf( "Highest Parameter Difference : %.20e\n", max_param_difference );
@@ -1692,7 +1727,13 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	printf( "\n\nSimplex took %ld evaluations.\n", difference_evals );
 	printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 0 ], simplex_matrix[ min_index ][ 2 ], simplex_matrix[ min_index ][ 4 ], simplex_matrix[ min_index ][ 6 ] );
 	printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 1 ], simplex_matrix[ min_index ][ 3 ], simplex_matrix[ min_index ][ 5 ], simplex_matrix[ min_index ][ 7 ] );
-	printf( "%e %e\n", simplex_matrix[ min_index ][ 8 ], simplex_matrix[ min_index ][ 9 ] );
+	if ( fastZ ) {
+		printf( "%e %e\n", simplex_matrix[ min_index ][ 8 ], simplex_matrix[ min_index ][ 9 ] );
+	}
+	else {
+		printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 8 ], simplex_matrix[ min_index ][ 9 ], simplex_matrix[ min_index ][ 10 ], simplex_matrix[ min_index ][ 11 ] );
+	}
+
 
 
 #ifdef S_MODE_OPENCL
