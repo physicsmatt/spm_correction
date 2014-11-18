@@ -880,9 +880,13 @@ void argo::performSimplexRoutine () {
 
 		grid_best[ 12 ] = results.bestA1;
 		grid_best[ 13 ] = results.bestB1 + 1;
+		grid_best[ 14 ] = results.bestC1;
 
 		precisionArr[ 12 ] = 0.1 / ( double ) images_store.orig_base->height;
 		precisionArr[ 13 ] = 0.1 / ( double ) images_store.orig_base->height;
+		precisionArr[ 14 ] = 0.1 * data_range;
+
+
 	}
 	else {
 		grid_best[ 8 ] = results.bestA1;
@@ -907,7 +911,7 @@ void argo::performSimplexRoutine () {
 	grid_best[ 7 ] = results.bestB3 / ( precision * precision );
 
 
-	for ( int i = 0; i < n; ++i ) {
+	for ( int i = 0; i < NUM_PARAMS; ++i ) {
 		simplex_best[ i ] = grid_best[ i ];
 	}
 	
@@ -947,6 +951,7 @@ void argo::performImageCorrection () {
 
 	aterms[ 1 ] = simplex_best[ 12 ];
 	bterms[ 1 ] = simplex_best[ 13 ];
+	cterms[ 1 ] = simplex_best[ 14 ];
 
 	FImage* warp_sliver = new FImage( images_store.orig_sliver->width, images_store.orig_sliver->height, images_store.orig_sliver->metadata );
 	images_store.orig_sliver->warpSliver( warp_sliver, aterms, bterms, cterms, interp_type );

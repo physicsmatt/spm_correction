@@ -1079,6 +1079,8 @@ double slowZDifference( double vertex[] ) {
 	double C2 = vertex[ 10 ];
 	double C3 = vertex[ 11 ];
 
+	double sC1 = vertex[ 14 ];
+
 #ifdef S_MODE_TBB
 	tbb::parallel_for( 1, sliversize[ 1 ], 1, [&]( int ys ) { //think about whether to reverse these two loops.
 #else
@@ -1110,7 +1112,7 @@ double slowZDifference( double vertex[] ) {
 				double Zm = base->interpPixel( xb, yb, F_BILINEAR );
 
 				//double diff = sliver->get(xs,ys) - interp_pixel(base,xb,yb);
-				double diff = ( C0 + Zm + C1*yb + C2*yb*yb + C3*yb*yb*yb ) - ( Zs - C1*xsp );
+				double diff = ( C0 + Zm + C1 * yb + C2 * yb * yb + C3 * yb * yb * yb ) - ( Zs - sC1 * xsp );
 
 				//	printf("MYFUNC VALS: %d %f %f\n", Zs, Zm, diff);
 				//	getchar();
@@ -1211,7 +1213,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 		n = 10;
 	}
 	else {
-		n = 14;
+		n = 15;
 	}
 
 	int i, j;
@@ -1364,12 +1366,13 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 		normalize_factors[ 9 ] = sliver->height;
 	}
 	else {
-		normalize_factors[ 8 ] = 1;
-		normalize_factors[ 9 ] = 1;
-		normalize_factors[ 10 ] = 1;
-		normalize_factors[ 11 ] = 1;
+		normalize_factors[ 8 ] = 1.0;
+		normalize_factors[ 9 ] = 1.0;
+		normalize_factors[ 10 ] = 1.0;
+		normalize_factors[ 11 ] = 1.0;
 		normalize_factors[ 12 ] = sliver->height;
 		normalize_factors[ 13 ] = sliver->height;
+		normalize_factors[ 14 ] = 1.0;
 	}
 
 
@@ -1679,6 +1682,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 				printf( "Normalized C3 Difference : %.20e\n", param_differences[ 11 ] );
 				printf( "Normalized sA1 Difference : %.20e\n", param_differences[ 12 ] );
 				printf( "Normalized sB1 Difference : %.20e\n", param_differences[ 13 ] );
+				printf( "Normalized sC1 Difference : %.20e\n", param_differences[ 14 ] );
 			}
 
 

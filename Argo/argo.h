@@ -4,6 +4,7 @@
 #include "FImage.h"
 
 #define VERSION "1.3"
+#define NUM_PARAMS 15
 
 /**
  *	Struct for holding the 6 Beta values used to evaluate the C coefficients.
@@ -148,10 +149,9 @@ class argo {
 		} combos;
 
 		// Number of parameters to be optimized
-		int n = 14;
-		double grid_best[ 14 ];
-		double simplex_best[ 14 ];
-		double precisionArr[ 14 ];
+		double grid_best[ NUM_PARAMS ];
+		double simplex_best[ NUM_PARAMS ];
+		double precisionArr[ NUM_PARAMS ];
 
 		/**
 		 *	Debugging and non-debugging versions of argo execution.
