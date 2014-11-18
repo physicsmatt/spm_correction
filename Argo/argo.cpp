@@ -898,14 +898,44 @@ void argo::performImageCorrection () {
 	double bterms[ 4 ] = { simplex_best[ 1 ], simplex_best[ 3 ], simplex_best[ 5 ], simplex_best[ 7 ] };
 	double cterms[ 4 ] = { simplex_best[ 8 ], simplex_best[ 9 ], simplex_best[ 10 ], simplex_best[ 11 ] };
 
-	FImage* final = new FImage( images_store.orig_base->width, images_store.orig_base->height, images_store.orig_base->metadata );
-	images_store.orig_base->warpBase( final, aterms, bterms, cterms, 1, interp_type );
-	
-	std::string finalstring = base_name;
-	std::basic_string < char > finalmarkerstring( "_corrected" );
-	finalstring.insert( finalstring.rfind( "." ), finalmarkerstring );
-	final->writeImage( finalstring );
-	delete final;
+	FImage* warp_base = new FImage( images_store.orig_base->width, images_store.orig_base->height, images_store.orig_base->metadata );
+	images_store.orig_base->warpBase( warp_base, aterms, bterms, cterms, 1, interp_type );
+
+	FImage* warp_sliver = new FImage( images_store.orig_sliver->width, images_store.orig_sliver->height, images_store.orig_sliver->metadata );
+	images_store.orig_sliver->warpSliver( warp_sliver, aterms, bterms, cterms, interp_type );
+
+	// Write corrected images.
+	warp_base->writeImage( "w_base.tif" );
+	warp_sliver->writeImage( "w_sliver.tif" );
+
+	double base_min = warp_base->getMin();
+	double base_max = warp_base->getMax();
+	double sliver_min = warp_sliver->getMin();
+	double sliver_max = warp_sliver->getMax();
+	double min_val = base_min < sliver_min ? base_min : sliver_min;
+	double max_val = base_max < sliver_max ? base_max : sliver_max;
+	double slope = 1.0 / ( max_val - min_val );
+
+	// Write viewable images.
+	warp_base->writeDisplayableImage( "dw_base.tif", slope, min_val );
+	warp_sliver->writeDisplayableImage( "dw_sliver.tif", slope, min_val );
+
+
+
+	// Write viewable original images.
+	base_min = images_store.orig_base->getMin();
+	base_max = images_store.orig_base->getMax();
+	sliver_min = images_store.orig_sliver->getMin();
+	sliver_max = images_store.orig_sliver->getMax();
+	min_val = base_min < sliver_min ? base_min : sliver_min;
+	max_val = base_max < sliver_max ? base_max : sliver_max;
+	slope = 1.0 / ( max_val - min_val );
+
+	images_store.orig_base->writeDisplayableImage( "orig_base.tif", slope, min_val );
+	images_store.orig_sliver->writeDisplayableImage( "orig_sliver.tif", slope, min_val );
+
+	delete warp_base;
+	delete warp_sliver;
 }
 
 /**
