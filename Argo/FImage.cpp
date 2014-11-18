@@ -217,7 +217,7 @@ double FImage::getRange() {
 	double maxVal = -std::numeric_limits<double>::infinity();
 	for ( int i = 0; i < width * height; ++i ) {
 		if ( ( data[ i ] < minVal )
-			 && ( minVal != -std::numeric_limits<double>::infinity() ) ) {
+			 && ( data[ i ] != -std::numeric_limits<double>::infinity() ) ) {
 			minVal = data[ i ];
 		}
 		if ( data[ i ] > maxVal ) {
