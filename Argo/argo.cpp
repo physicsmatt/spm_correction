@@ -956,7 +956,7 @@ void argo::performImageCorrection () {
 	FImage* warp_sliver = new FImage( images_store.orig_sliver->width, images_store.orig_sliver->height, images_store.orig_sliver->metadata );
 	images_store.orig_sliver->warpSliver( warp_sliver, aterms, bterms, cterms, interp_type );
 	
-	// Write warped and corrected images.
+	// Write corrected images.
 	warp_base->writeImage( "w_base.tif" );
 	warp_sliver->writeImage( "w_sliver.tif" );
 
@@ -971,6 +971,22 @@ void argo::performImageCorrection () {
 	// Write viewable images.
 	warp_base->writeDisplayableImage( "dw_base.tif", slope, min_val );
 	warp_sliver->writeDisplayableImage( "dw_sliver.tif", slope, min_val );
+
+
+
+
+
+	// Write viewable original images.
+	base_min = images_store.orig_base->getMin();
+	base_max = images_store.orig_base->getMax();
+	sliver_min = images_store.orig_sliver->getMin();
+	sliver_max = images_store.orig_sliver->getMax();
+	min_val = base_min < sliver_min ? base_min : sliver_min;
+	max_val = base_max < sliver_max ? base_max : sliver_max;
+	slope = 1.0 / ( max_val - min_val );
+
+	images_store.orig_base->writeDisplayableImage( "orig_base.tif", slope, min_val );
+	images_store.orig_sliver->writeDisplayableImage( "orig_sliver.tif", slope, min_val );
 
 	delete warp_base;
 	delete warp_sliver;
