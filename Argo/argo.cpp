@@ -251,7 +251,7 @@ void argo::logProgramInformation () {
 		fprintf( paramfile, "B0 = %e;\nB1 = %e;\nB2 = %e;\nB3 = %e;\n", simplex_best[ 1 ], simplex_best[ 3 ] - 1.0, simplex_best[ 5 ], simplex_best[ 7 ] );
 		if ( !simplex_mode ) {
 			fprintf( paramfile, "C0 = %e;\nC1 = %e;\nC2 = %e;\nC3 = %e;\n", simplex_best[ 8 ], simplex_best[ 9 ], simplex_best[ 10 ], simplex_best[ 11 ] );
-			fprintf( paramfile, "Sliver A1 = %e;\nSliver B1 = %e;\n", simplex_best[ 12 ], simplex_best[ 13 ] - 1.0 );
+			fprintf( paramfile, "Sliver A1 = %e;\nSliver B1 = %e;\nSliver C1 = %e'\n", simplex_best[ 12 ], simplex_best[ 13 ] - 1.0, simplex_best[ 14 ] );
 		}
 		else {
 			fprintf( paramfile, "Sliver A1 = %e;\nSliver B1 = %e;\n", simplex_best[ 8 ], simplex_best[ 9 ] - 1.0 );
