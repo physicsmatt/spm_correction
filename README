@@ -1,8 +1,10 @@
 # Argo Version 1.3. #
 
+## Overview ##
+
 The following is an implementation of a three-axis correction routine for images displaying distortion in Scanning Probe Microscopy. The distortion correction uses a grid-search routine for thermal drift correction followed by a Nelder-Mead Simplex routine for simultaneous correction of thermal drift and z-axis piezo creep.
 
-# Compiling #
+## Compiling ##
 
 Compile using Visual Studio 2013.
 Requires the latest version of Eigen, Intel Thread Building Blocks (TBB), FreeImage and an OpenCL SDK.
@@ -53,7 +55,7 @@ with AMD's R9 290 GPU. The kernels have been modified in the past to work with N
 Please refer to documentation provided by FreeImage, Intel's TBB, and Eigen for general questions about
 those libraries.
 
-# Related Publications #
+## Related Publications ##
 
 Nathan D. Follin, Keefer D. Taylor, Christopher J. Musalo, and Matthew L. Trawick, “Three-axis correction of distortion due to positional drift in scanning probe microscopy,” Review of Scientific Instruments (in press), 2012
 
