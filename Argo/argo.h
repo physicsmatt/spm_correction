@@ -33,6 +33,8 @@ class argo {
 		// Basic destructor.
 		~argo ();
 
+		int mode = 0;
+
 		// This struct hold various run-time values for debugging and profiling purposes.
 		struct {
 				double combos_time = 0, diffs_time = 0, grid_time = 0, simplex_time = 0, image_read_time = 0, image_write_time = 0, total_time = 0;
@@ -110,10 +112,10 @@ class argo {
 		 *	Struct to store original and resampled image files.
 		 */
 		struct {
-				FImage * orig_sliver;
-				FImage * orig_base;
-				FImage * resamp_sliver;
-				FImage * resamp_base;
+				FImage * orig_sliver = 0;
+				FImage * orig_base = 0;
+				FImage * resamp_sliver = 0;
+				FImage * resamp_base = 0;
 				bool flipped;	// This boolean specifies if the image being read in should be read in y-down or y-up
 		} images_store;
 
@@ -135,16 +137,16 @@ class argo {
 		 *	Stores the beta and gamma diff arrays.
 		 */
 		struct {
-				gamma_values * difflets;
-				beta_values * dynamic_diffs;
+				gamma_values * difflets = 0;
+				beta_values * dynamic_diffs = 0;
 		} beta_gamma_store;
 
 		/**
 		 *	Stores the range of precomputed A and B parameters grid search will search through.
 		 */
 		struct {
-				param_combo * A_combos;
-				param_combo * B_combos;
+				param_combo * A_combos = 0;
+				param_combo * B_combos = 0;
 		} combos;
 
 		// Number of parameters to be optimized
@@ -156,8 +158,7 @@ class argo {
 		/**
 		 *	Debugging and non-debugging versions of argo execution.
 		 */
-		void correctImages ( int argc, char *argv[] );
-		void correctImages ( int argc, char *argv[], bool verbose );
+		void correctImages ( int argc, char *argv[], int mode, bool verbose = false );
 
 	private:
 		// Deprecated variable for interpolation type. Will be refactored and removed eventually. Routine uses a bicubic/b-spline routine now.
@@ -172,24 +173,30 @@ class argo {
 		void logCurrentBest ();
 		void logGridSearchInfo ();
 		void logSimplexRoutineInfo ();
-		void logProgramInformation ();
+		void logProgramInformation( );
 
 		// Reads necessary parameters to run grid-search.
 		void readInputParams ( int argc, char *argv[] );
 		// Calculates values necessary for grid search run.
 		void initCalculatedParams ();
 		// Reads in image files.
-		void readImages ( bool verbose );
+		void readImages ( bool debug );
 		// Initializes A and B combos.
 		void initCombos ();
 		// Initializes Beta and Gamma diffs.
 		void initBetaGamma ();
 		// Performs the Grid Search routine.
-		void performGridSearch ( bool verbose );
+		void performGridSearch( bool debug );
+		// Updates the currently best parameters
+		void updateBestParameters();
+		// Reads Parameters from a file if Simplex only mode
+		void readParameters();
+		// Writes Parameters to a file if Full Mode
+		void writeParameters();
 		// Performs the Simplex routine.
-		void performSimplexRoutine ();
+		void performSimplexRoutine( bool debug );
 		// Performs the final image correction wtih the data calculated.
-		void performImageCorrection ();
+		void performImageCorrection( bool debug );
 };
 
 #endif _ARGO_H_

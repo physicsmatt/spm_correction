@@ -36,7 +36,7 @@ this software is worth what you paid for it, and you paid zero.
 bool fastZ = true;
 
 long difference_evals = 0;
-bool debug = false;
+bool simplex_debugging = false;
 int operations = 0;
 
 FImage *base;
@@ -170,7 +170,7 @@ void initializeOpenCLContext() {
 	}
 
 	printf( "\n" );
-	default_device = all_devices[ 1 ];
+	default_device = all_devices[ 0 ];
 	printf( "Using Primary Device : %s\n", default_device.getInfo<CL_DEVICE_NAME>().c_str() );
 	printf( "\n" );
 	context = cl::Context( { default_device } );
@@ -286,7 +286,7 @@ void initializeOpenCLContext() {
  *	
  *	@return	A double precision difference value of the image.
  */
-double fastZDifference( double vertex[], bool writeFile ) {
+double fastZDifference( double vertex[], bool debug, bool writeFile ) {
 	// Precomputation of bounds and weights necessary.
 	double As[ 4 ] = { vertex[ 0 ], vertex[ 2 ], vertex[ 4 ], vertex[ 6 ] };
 	double Bs[ 4 ] = { vertex[ 1 ], vertex[ 3 ], vertex[ 5 ], vertex[ 7 ] };
@@ -523,25 +523,32 @@ double fastZDifference( double vertex[], bool writeFile ) {
 			}
 		}
 
-		double base_min = warp_base->getMin();
-		double base_max = warp_base->getMax();
-		double sliver_min = warp_sliver->getMin();
-		double sliver_max = warp_sliver->getMax();
-		double min_val = base_min < sliver_min ? base_min : sliver_min;
-		double max_val = base_max < sliver_max ? base_max : sliver_max;
-		double slope = 1.0 / ( max_val - min_val );
+		
 
-		printf( "Lower min value of both iamges : %f\n", min_val );
-		printf( "Lower max value of both images : %f\n", max_val );
-		printf( "Slope of displayable images : %f\n", slope );
+		if( debug )	{
+			double base_min = warp_base->getMin();
+			double base_max = warp_base->getMax();
+			double sliver_min = warp_sliver->getMin();
+			double sliver_max = warp_sliver->getMax();
+			double min_val = base_min < sliver_min ? base_min : sliver_min;
+			double max_val = base_max < sliver_max ? base_max : sliver_max;
+			double slope = 1.0 / ( max_val - min_val );
+
+			printf( "Lower min value of both iamges : %f\n", min_val );
+			printf( "Lower max value of both images : %f\n", max_val );
+			printf( "Slope of displayable images : %f\n", slope );
+
+			// Write viewable images.
+			warp_base->writeDisplayableImage( "base_displayable.correctedfastZ.tiff", slope, min_val );
+			warp_sliver->writeDisplayableImage( "sliver_displayable.correctedfastZ.tiff", slope, min_val );
+		}
+		
 
 		// Write warped and corrected images.
-		warp_base->writeImage( "w_base.tif" );
-		warp_sliver->writeImage( "w_sliver.tif" );
+		warp_base->writeImage( "base.correctedfastZ.tiff" );
+		warp_sliver->writeImage( "sliver.correctedfastZ.tiff" );
 
-		// Write viewable images.
-		warp_base->writeDisplayableImage( "dw_base.tif", slope, min_val );
-		warp_sliver->writeDisplayableImage( "dw_sliver.tif", slope, min_val );
+		
 
 		delete[] RCs;
 		delete warp_base;
@@ -971,29 +978,31 @@ double fastZDifference( double vertex[], bool writeFile ) {
 
 	// If we are at the end of the program, ouput data to files.
 	if ( writeFile ) {
-		std::ofstream output;
-		// Debugging info.
-		output.open( "matrix.txt", std::ios::out );
-		if ( output.is_open() ) {
-			output << "MinY : " << minY << "\t MaxY : " << maxY << "\t MaxX : " << maxX << "\n";
-			output << "Difference : " << sum / area << "\n";
-			output << "\n\n";
-			output << "This is the generated vector : \n\n";
-			for ( int i = 0; i < size; ++i ) {
-				output << KRCs[ i ] << "\n";
+		if ( debug ) {
+			std::ofstream output;
+			// Debugging info.
+			output.open( "matrix.txt", std::ios::out );
+			if ( output.is_open() ) {
+				output << "MinY : " << minY << "\t MaxY : " << maxY << "\t MaxX : " << maxX << "\n";
+				output << "Difference : " << sum / area << "\n";
+				output << "\n\n";
+				output << "This is the generated vector : \n\n";
+				for ( int i = 0; i < size; ++i ) {
+					output << KRCs[ i ] << "\n";
+				}
+				output << "\n\n";
+				output << "These are the computed C's : \n\n";
+				for ( int i = 0; i < m - 1; ++i ) {
+					output << RCs[ i ] << "\n";
+				}
+				output << "\n\n";
+				output << "These are the computed R's : \n\n";
+				for ( int i = m - 1; i < size; ++i ) {
+					output << RCs[ i ] << "\n";
+				}
 			}
-			output << "\n\n";
-			output << "These are the computed C's : \n\n";
-			for ( int i = 0; i < m - 1; ++i ) {
-				output << RCs[ i ] << "\n";
-			}
-			output << "\n\n";
-			output << "These are the computed R's : \n\n";
-			for ( int i = m - 1; i < size; ++i ) {
-				output << RCs[ i ] << "\n";
-			}
+			output.close();
 		}
-		output.close();
 
 		double Cs[ 4 ] = { 0, 0, 0, 0 };
 
@@ -1019,21 +1028,22 @@ double fastZDifference( double vertex[], bool writeFile ) {
 			}
 		}
 
-		double base_min = warp_base->getMin();
-		double base_max = warp_base->getMax();
-		double sliver_min = warp_sliver->getMin();
-		double sliver_max = warp_sliver->getMax();
-		double min_val = base_min < sliver_min ? base_min : sliver_min;
-		double max_val = base_max < sliver_max ? base_max : sliver_max;
-		double slope = 1 / ( max_val - min_val );
+		if ( debug ) {
+			double base_min = warp_base->getMin();
+			double base_max = warp_base->getMax();
+			double sliver_min = warp_sliver->getMin();
+			double sliver_max = warp_sliver->getMax();
+			double min_val = base_min < sliver_min ? base_min : sliver_min;
+			double max_val = base_max < sliver_max ? base_max : sliver_max;
+			double slope = 1 / ( max_val - min_val );
 
+			// Write viewable images.
+			warp_base->writeDisplayableImage( "base_displayable.correctedfastZ.tiff", slope, min_val );
+			warp_sliver->writeDisplayableImage( "sliver_displayable.correctedfastZ.tiff", slope, min_val );
+		}
 		// Write warped and corrected images.
-		warp_base->writeImage( "w_base.tif" );
-		warp_sliver->writeImage( "w_sliver.tif" );
-
-		// Write viewable images.
-		warp_base->writeDisplayableImage( "dw_base.tif", slope, min_val );
-		warp_sliver->writeDisplayableImage( "dw_sliver.tif", slope, min_val );
+		warp_base->writeImage( "base.correctedfastZ.tiff" );
+		warp_sliver->writeImage( "sliver.correctedfastZ.tiff" );
 
 		delete warp_base;
 		delete warp_sliver;
@@ -1134,10 +1144,10 @@ double slowZDifference( double vertex[] ) {
  *	@param	vertex	An array storing parameter values.
  *	@return		The calculated difference.
  */
-double determineDifference( double vertex[] ) {
+double determineDifference( double vertex[], bool debug ) {
 	difference_evals++;  //increment global variable used to count function evaluations
 	if ( fastZ )
-		return fastZDifference( vertex, false );
+		return fastZDifference( vertex, debug, false );
 	else
 		return slowZDifference( vertex );
 }
@@ -1190,7 +1200,7 @@ void copySliver( FImage *_sliver ) {
  *	@return		0 if success
  */
 int simplex( FImage *_base, FImage *_sliver, double input_vector[], double return_vector[], bool _fastZ, double precision[], double alpha, double beta, double gamma,
-			int maxi ) {
+			 int maxi, bool debug ) {
 
 	fastZ = _fastZ;
 	int n;
@@ -1233,9 +1243,12 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	#ifdef S_MODE_TBB
 	if ( !init.is_active() ) {
 		init.initialize();
-		printf( "TBB Thread Scheduler Initialized : %d Threads.\n", init.default_num_threads() );
+		if ( debug ) {
+			printf( "TBB Thread Scheduler Initialized : %d Threads.\n", init.default_num_threads() );
+		}
+		
 	}
-	else {
+	else if ( debug ) {
 		printf( "TBB Thread Scheduler Already Exists : %d Threads.\n", init.default_num_threads() );
 	}
 	#endif
@@ -1281,7 +1294,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	/* go through all of the points of the Simplex & find max, min */
 	max_index = 0;
 	min_index = 0;
-	differences[ 0 ] = determineDifference( input_vector );
+	differences[ 0 ] = determineDifference( input_vector, debug );
 	max_difference = differences[ 0 ];
 	min_difference = max_difference;
 	iterations = 0;
@@ -1290,7 +1303,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	for ( i = 1; i <= n; i++ ) {
 		for ( j = 0; j < n; j++ )
 			vertex_reflection[ j ] = simplex_matrix[ i ][ j ];
-		differences[ i ] = determineDifference( vertex_reflection );
+		differences[ i ] = determineDifference( vertex_reflection, debug );
 		if ( differences[ i ] >= max_difference ) {
 			max_difference = differences[ i ];
 			next_max_difference = differences[ max_index ];
@@ -1347,8 +1360,8 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	normalize_factors[ 6 ] = sliver->height * sliver->height * sliver->height;
 	normalize_factors[ 7 ] = sliver->height * sliver->height * sliver->height;
 
-	while ( ( ( max_param_difference > 1e-13 ) || ( max_successive_difference >= 1e-10 ) ) && ( iterations < maxi + 1 ) ) {
-		debug = false;
+	while ( ( ( max_param_difference > 1e-12 ) || ( max_successive_difference >= 1e-10 ) ) && ( iterations < maxi + 1 ) ) {
+		simplex_debugging = false;
 		/*new code*/
 		///*******************************************************///
 		///************************reflection*********************///
@@ -1359,7 +1372,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 			vertex_reflection[ i ] = c + alpha * ( c - simplex_matrix[ max_index ][ i ] );
 		}
 
-		reflection_difference = determineDifference( vertex_reflection );
+		reflection_difference = determineDifference( vertex_reflection, debug );
 
 		//if the reflected simplex is decent, use it...but not if its very good.
 		//if the reflected simplex is very good, try an expansion
@@ -1370,7 +1383,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 			differences[ max_index ] = reflection_difference;
 			operations++;
 			//printf("R");
-			debug = true;
+			simplex_debugging = true;
 		}
 		///*******************************************************///
 		///************************greedy expansion***************///
@@ -1380,13 +1393,13 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 		c = centroid[i];
 		vertex_expansion[i] = c + gamma*(vertex_reflection[i]-c);
 		}
-		expansion_difference = determineDifference(vertex_expansion);
+		expansion_difference = determineDifference(vertex_expansion, debug);
 		if(expansion_difference < min_difference){
 		for(i =0; i<n; i++){Simplex[max_index][i]=vertex_expansion[i];}
 		max_difference = expansion_difference ;
 		printf("e");
 		operations++;
-		debug = true;
+		simplex_debugging = true;
 		goto do_more;
 		}
 		else{
@@ -1394,7 +1407,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 		max_difference = reflection_difference ;
 		printf("r");
 		operations++;
-		debug = true;
+		simplex_debugging = true;
 		goto do_more;
 		}
 		}*/
@@ -1409,7 +1422,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 				c = centroid[ j ];
 				vertex_expansion[ j ] = c + gamma * ( vertex_reflection[ j ] - c );
 			}
-			expansion_difference = determineDifference( vertex_expansion );
+			expansion_difference = determineDifference( vertex_expansion, debug );
 			//if the expanded simplex is better, use it.
 			if ( expansion_difference < reflection_difference ) {
 				for ( i = 0; i < n; i++ ) {
@@ -1418,7 +1431,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 				max_difference = expansion_difference;
 				//printf("e");
 				operations++;
-				debug = true;
+				simplex_debugging = true;
 			}
 			//if the expanded simplex isn't better, use the reflected simplex, this will keep the
 			//simplex smaller
@@ -1429,7 +1442,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 				max_difference = reflection_difference;
 				//printf("r");
 				operations++;
-				debug = true;
+				simplex_debugging = true;
 			}
 		}
 		/*Nathan's Contraction and Shrink code to include both contraction cases*/
@@ -1457,12 +1470,12 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 				}
 			}
 
-			expansion_difference = determineDifference( vertex_expansion );
+			expansion_difference = determineDifference( vertex_expansion, debug );
 			if ( le == true ) {
 				if ( expansion_difference <= reflection_difference ) {
 					//printf("c");
 					operations++;
-					debug = true;
+					simplex_debugging = true;
 					//cout << "case1\n";
 					//getchar();
 					for ( i = 0; i < n; i++ ) {
@@ -1476,13 +1489,13 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 					/* towards the present minimum point */
 					//printf("S-c");
 					operations++;
-					debug = true;
+					simplex_debugging = true;
 					for ( i = 0; i <= n; i++ ) {
 						for ( j = 0; j < n; j++ ) {
 							simplex_matrix[ i ][ j ] = 0.5 * ( simplex_matrix[ i ][ j ] + simplex_matrix[ min_index ][ j ] );
 							vertex_reflection[ j ] = simplex_matrix[ i ][ j ];
 						}
-						reflection_difference = determineDifference( vertex_reflection );
+						reflection_difference = determineDifference( vertex_reflection, debug );
 						differences[ i ] = reflection_difference;
 					}
 				}
@@ -1491,7 +1504,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 				if ( expansion_difference < max_difference ) {
 					//printf("C");
 					operations++;
-					debug = true;
+					simplex_debugging = true;
 					//cout << "case2\n";
 					//getchar();
 					for ( i = 0; i < n; i++ ) {
@@ -1505,13 +1518,13 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 					/* towards the present minimum point */
 					//printf("S-C");
 					operations++;
-					debug = true;
+					simplex_debugging = true;
 					for ( i = 0; i <= n; i++ ) {
 						for ( j = 0; j < n; j++ ) {
 							simplex_matrix[ i ][ j ] = 0.5 * ( simplex_matrix[ i ][ j ] + simplex_matrix[ min_index ][ j ] );
 							vertex_reflection[ j ] = simplex_matrix[ i ][ j ];
 						}
-						reflection_difference = determineDifference( vertex_reflection );
+						reflection_difference = determineDifference( vertex_reflection, debug );
 						differences[ i ] = reflection_difference;
 					}
 				}
@@ -1615,32 +1628,38 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 		}
 
 		if ( ( iterations % ( PRINTEM ) ) == 0 ) {
-			printf( "ITERATION %4d    Best Difference = %e\n", iterations, min_difference );
-			printf( "%d Operations completed.\n", operations );
-			operations = 0;
-			printf( "Current Best Parameters : \n" );
-			printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 0 ], simplex_matrix[ min_index ][ 2 ], simplex_matrix[ min_index ][ 4 ], simplex_matrix[ min_index ][ 6 ] );
-			printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 1 ], simplex_matrix[ min_index ][ 3 ], simplex_matrix[ min_index ][ 5 ], simplex_matrix[ min_index ][ 7 ] );
-			// printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 8 ], simplex_matrix[ min_index ][ 9 ], simplex_matrix[ min_index ][ 10 ], simplex_matrix[ min_index ][ 11 ] );
-			for ( int i = 0; i < n + 1; ++i ) {
-				printf( "Difference %d : %.20e\n", i, differences[ i ] );
+			if ( debug ) {
+				printf( "ITERATION %4d    Best Difference = %e\n", iterations, min_difference );
+				printf( "%d Operations completed.\n", operations );
 			}
-			printf( "Average Difference : %.20e\n", mean_difference );
-			printf( "Deviation : %.20e\n", deviation );
-			printf( "Normalized A0 Difference : %.20e\n", param_differences[ 0 ] );
-			printf( "Normalized B0 Difference : %.20e\n", param_differences[ 1 ] );
-			printf( "Normalized A1 Difference : %.20e\n", param_differences[ 2 ] );
-			printf( "Normalized B1 Difference : %.20e\n", param_differences[ 3 ] );
-			printf( "Normalized A2 Difference : %.20e\n", param_differences[ 4 ] );
-			printf( "Normalized B2 Difference : %.20e\n", param_differences[ 5 ] );
-			printf( "Normalized A3 Difference : %.20e\n", param_differences[ 6 ] );
-			printf( "Normalized B3 Difference : %.20e\n", param_differences[ 7 ] );
-			printf( "Highest Parameter Difference : %.20e\n", max_param_difference );
-			printf( "Highest Successive Difference Resulting from Param %d : %.20e\n", limiting_param, max_successive_difference );
-			printf( "\n" );
+
+			operations = 0;
+
+			if ( debug ) {
+				printf( "Current Best Parameters : \n" );
+				printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 0 ], simplex_matrix[ min_index ][ 2 ], simplex_matrix[ min_index ][ 4 ], simplex_matrix[ min_index ][ 6 ] );
+				printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 1 ], simplex_matrix[ min_index ][ 3 ], simplex_matrix[ min_index ][ 5 ], simplex_matrix[ min_index ][ 7 ] );
+				// printf( "%e %e %e %e\n", simplex_matrix[ min_index ][ 8 ], simplex_matrix[ min_index ][ 9 ], simplex_matrix[ min_index ][ 10 ], simplex_matrix[ min_index ][ 11 ] );
+				for ( int i = 0; i < n + 1; ++i ) {
+					printf( "Difference %d : %.20e\n", i, differences[ i ] );
+				}
+				printf( "Average Difference : %.20e\n", mean_difference );
+				printf( "Deviation : %.20e\n", deviation );
+				printf( "Normalized A0 Difference : %.20e\n", param_differences[ 0 ] );
+				printf( "Normalized B0 Difference : %.20e\n", param_differences[ 1 ] );
+				printf( "Normalized A1 Difference : %.20e\n", param_differences[ 2 ] );
+				printf( "Normalized B1 Difference : %.20e\n", param_differences[ 3 ] );
+				printf( "Normalized A2 Difference : %.20e\n", param_differences[ 4 ] );
+				printf( "Normalized B2 Difference : %.20e\n", param_differences[ 5 ] );
+				printf( "Normalized A3 Difference : %.20e\n", param_differences[ 6 ] );
+				printf( "Normalized B3 Difference : %.20e\n", param_differences[ 7 ] );
+				printf( "Highest Parameter Difference : %.20e\n", max_param_difference );
+				printf( "Highest Successive Difference Resulting from Param %d : %.20e\n", limiting_param, max_successive_difference );
+				printf( "\n" );
+			}
 		}
 
-		if ( debug == false ) {
+		if ( simplex_debugging == false ) {
 			printf( "\n" );
 			printf( "Reflection Difference : %e\n", reflection_difference );
 			printf( "Expansion Difference : %e\n", expansion_difference );
@@ -1674,7 +1693,7 @@ int simplex( FImage *_base, FImage *_sliver, double input_vector[], double retur
 	}
 
 	if ( fastZ ) {
-		fastZDifference( return_vector, true );
+		fastZDifference( return_vector, debug, true );
 	}
 
 	printf( "\n\nSimplex took %ld evaluations.\n", difference_evals );

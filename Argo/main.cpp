@@ -11,16 +11,77 @@
 	#include <iostream>
 	#include "argo.h"
 
+	int getMode( int argc, char *argv[] ) {
+		int mode = 0;
+		char command_arg;
+		for ( int i = 1; i < argc; ++i ) {
+			if ( argv[ i ][ 0 ] == '-' ) {
+				command_arg = argv[ i ][ 1 ];
+				switch ( command_arg ) {
+					case 'm':
+						mode = atoi( argv[ i + 1 ] );
+					default:
+						break;
+				}
+			}
+		}
+		return mode;
+	}
+
 	/**
 	*	Main method for our program.
 	*/
 	int main( int argc, char *argv[] ) {
-		printf( "************ Running Argo Version " VERSION " ************\n" );
-		argo* program = new argo();
-		program->correctImages( argc, argv, true );
-		delete program;
-		getchar();
+		int mode = getMode( argc, argv );
+		if ( mode == 0 || mode == 1 || mode == 2 ) {
+			printf( "************ Running Argo Version " VERSION " ************\n" );
+		}
+		// Default Full Debug Mode
+		if ( mode == 0 ) {
+			argo* program = new argo();
+			program->correctImages( argc, argv, 0, true );
+			delete program;
+			// getchar();
+		}
+		// Default Grid-Search Only Debug Mode
+		else if ( mode == 1 ) {
+			argo* program = new argo();
+			program->correctImages( argc, argv, 1, true );
+			delete program;
+			getchar();
+		}
+		// Default Simplex Only Debug Mode
+		else if ( mode == 2 ) {
+			// argo* program = new argo();
+			// program->correctImages( argc, argv, 2, true );
+			// delete program;
+
+			argo program;
+			program.correctImages( argc, argv, 2, true );
+			//getchar();
+		}
+
+
+		// Default Full Silent Mode
+		else if ( mode == 3 ) {
+			argo* program = new argo();
+			program->correctImages( argc, argv, 0 );
+			delete program;
+		}
+		// Default Grid-Search Only Silent Mode
+		else if ( mode == 4 ) {
+			argo* program = new argo();
+			program->correctImages( argc, argv, 1 );
+			delete program;
+		}
+		// Default Simplex Only Silent Mode
+		else if ( mode == 5 ) {
+			argo* program = new argo();
+			program->correctImages( argc, argv, 2 );
+			delete program;
+		}
 	}
+
 #endif
 
 

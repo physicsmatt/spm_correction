@@ -6,7 +6,7 @@
 #define S_MODE_TBB 0x0002
 
 
-#define S_MODE_TYPE S_MODE_TBB
+#define S_MODE_TYPE S_MODE_OPENCL
 
 #if ( S_MODE_TYPE == S_MODE_OPENCL )
 	#undef S_MODE_SEQUENTIAL
@@ -47,7 +47,7 @@
 
 
 int simplex ( FImage *baseImage, FImage *sliverImage, double x[], double z[], bool _fastZ, double precision[], double alpha, double beta, double gamma,
-		int maxi );
+			  int maxi, bool debug );
 
 
 #endif _SIMPLEX_H_

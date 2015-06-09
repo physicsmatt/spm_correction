@@ -1,5 +1,6 @@
 #define _CRT_SECURE_NO_WARNINGS
 
+#include <fstream>
 #include <algorithm>
 #include <time.h>
 #include <iostream>
@@ -106,28 +107,31 @@ argo::argo () {
  *	Destructor. Deletes any allocations that had taken place.
  */
 argo::~argo () {
-	if ( beta_gamma_store.difflets ) {
-		delete[] beta_gamma_store.difflets;
+	if ( mode == 0 || mode == 1 ) {
+		if ( beta_gamma_store.difflets != 0 ) {
+			delete[] beta_gamma_store.difflets;
+		}
+		if ( beta_gamma_store.dynamic_diffs != 0 ) {
+			delete[] beta_gamma_store.dynamic_diffs;
+		}
+		if ( combos.A_combos != 0 ) {
+			delete[] combos.A_combos;
+		}
+		if ( combos.B_combos != 0 ) {
+			delete[] combos.B_combos;
+		}
 	}
-	if ( beta_gamma_store.dynamic_diffs ) {
-		delete[] beta_gamma_store.dynamic_diffs;
-	}
-	if ( combos.A_combos ) {
-		delete[] combos.A_combos;
-	}
-	if ( combos.B_combos ) {
-		delete[] combos.B_combos;
-	}
-	if ( images_store.orig_base ) {
+	
+	if ( images_store.orig_base != 0 ) {
 		delete images_store.orig_base;
 	}
-	if ( images_store.resamp_base ) {
+	if ( images_store.resamp_base != 0 ) {
 		delete images_store.resamp_base;
 	}
-	if ( images_store.orig_sliver ) {
+	if ( images_store.orig_sliver != 0 ) {
 		delete images_store.orig_sliver;
 	}
-	if ( images_store.resamp_sliver ) {
+	if ( images_store.resamp_sliver != 0 ) {
 		delete images_store.resamp_sliver;
 	}
 }
@@ -241,22 +245,32 @@ void argo::logProgramInformation () {
 		printf( "File Not opened!" );
 	}
 	else {
-		fprintf( paramfile, "Simplex Routine Parameters : \n" );
-		fprintf( paramfile, "A0 = %e;\nA1 = %e;\nA2 = %e;\nA3 = %e;\n", simplex_best[ 0 ], simplex_best[ 2 ], simplex_best[ 4 ], simplex_best[ 6 ] );
-		fprintf( paramfile, "B0 = %e;\nB1 = %e;\nB2 = %e;\nB3 = %e;\n", simplex_best[ 1 ], simplex_best[ 3 ] - 1.0, simplex_best[ 5 ], simplex_best[ 7 ] );
-		fprintf( paramfile, "C0 = %e;\nC1 = %e;\nC2 = %e;\nC3 = %e;\n", simplex_best[ 8 ], simplex_best[ 9 ], simplex_best[ 10 ], simplex_best[ 11 ] );
-		fprintf( paramfile, "\n" );
-		fprintf( paramfile, "Grid Search Parameters : \n" );
-		fprintf( paramfile, "A0 = %e;\nA1 = %e;\nA2 = %e;\nA3 = %e;\n", grid_best[ 0 ], grid_best[ 2 ], grid_best[ 4 ], grid_best[ 6 ] );
-		fprintf( paramfile, "B0 = %e;\nB1 = %e;\nB2 = %e;\nB3 = %e;\n", grid_best[ 1 ], grid_best[ 3 ] - 1.0, grid_best[ 5 ], grid_best[ 7 ] );
-		fprintf( paramfile, "C0 = %e;\nC1 = %e;\nC2 = %e;\nC3 = %e;\n", grid_best[ 8 ], grid_best[ 9 ], grid_best[ 10 ], grid_best[ 11 ] );
-		fprintf( paramfile, "\n" );
+		if ( mode == 0 || mode == 2 ) {
+			fprintf( paramfile, "Simplex Routine Parameters : \n" );
+			fprintf( paramfile, "A0 = %e;\nA1 = %e;\nA2 = %e;\nA3 = %e;\n", simplex_best[ 0 ], simplex_best[ 2 ], simplex_best[ 4 ], simplex_best[ 6 ] );
+			fprintf( paramfile, "B0 = %e;\nB1 = %e;\nB2 = %e;\nB3 = %e;\n", simplex_best[ 1 ], simplex_best[ 3 ] - 1.0, simplex_best[ 5 ], simplex_best[ 7 ] );
+			fprintf( paramfile, "C0 = %e;\nC1 = %e;\nC2 = %e;\nC3 = %e;\n", simplex_best[ 8 ], simplex_best[ 9 ], simplex_best[ 10 ], simplex_best[ 11 ] );
+			fprintf( paramfile, "\n" );
+		}
+		if ( mode == 0 || mode == 1 ) {
+			fprintf( paramfile, "Grid Search Parameters : \n" );
+			fprintf( paramfile, "A0 = %e;\nA1 = %e;\nA2 = %e;\nA3 = %e;\n", grid_best[ 0 ], grid_best[ 2 ], grid_best[ 4 ], grid_best[ 6 ] );
+			fprintf( paramfile, "B0 = %e;\nB1 = %e;\nB2 = %e;\nB3 = %e;\n", grid_best[ 1 ], grid_best[ 3 ] - 1.0, grid_best[ 5 ], grid_best[ 7 ] );
+			fprintf( paramfile, "C0 = %e;\nC1 = %e;\nC2 = %e;\nC3 = %e;\n", grid_best[ 8 ], grid_best[ 9 ], grid_best[ 10 ], grid_best[ 11 ] );
+			fprintf( paramfile, "\n" );
+		}
+		
 		fprintf( paramfile, "Time Information : \n" );
 		fprintf( paramfile, "Image Read Time : \t%f\n", times.image_read_time );
-		fprintf( paramfile, "Combos Time : \t%f\n", times.combos_time );
-		fprintf( paramfile, "Diffs Time : \t%f\n", times.diffs_time );
-		fprintf( paramfile, "Grid Search Time : \t%f\n", times.grid_time );
-		fprintf( paramfile, "Simplex Routine Time : \t%f\n", times.simplex_time );
+		if ( mode == 0 || mode == 1 ) {
+			fprintf( paramfile, "Combos Time : \t%f\n", times.combos_time );
+			fprintf( paramfile, "Diffs Time : \t%f\n", times.diffs_time );
+			fprintf( paramfile, "Grid Search Time : \t%f\n", times.grid_time );
+		}
+		if ( mode == 2 ) {
+			fprintf( paramfile, "Simplex Routine Time : \t%f\n", times.simplex_time );
+		}
+		
 		fprintf( paramfile, "Image Write Time\t%f\n", times.image_write_time );
 		fprintf( paramfile, "Total Program Time : \t%f\n", times.total_time );
 		fprintf( paramfile, "\n");
@@ -264,7 +278,6 @@ void argo::logProgramInformation () {
 		fprintf( paramfile, "Total Parameters Generated : %I64u\n", results.count );
 		fprintf( paramfile, "Best Difference Calculated by Grid Search : %e\n", results.bestdiff );
 		fprintf( paramfile, "Total Iterations Ignored : %I64u\n", results.iterations_ignored );
-
 		fclose( paramfile );
 		printf( "********End of Program********\n" );
 	}
@@ -273,17 +286,17 @@ void argo::logProgramInformation () {
 /**
 *	Read in image files.
 *	
-*	@param	verbose	Boolean flag to print debug info.
+*	@param	debug	Boolean flag to print debug info.
 */
-void argo::readImages ( bool verbose ) {
+void argo::readImages ( bool debug ) {
 	// Read image files and resample based upon provided precision.
-	if ( verbose ) {
+	if ( debug ) {
 		printf( "Reading in images : '%s' and '%s'.\n", base_name.c_str(), sliver_name.c_str() );
 	}
 	images_store.orig_base = new FImage( base_name, images_store.flipped );
 	images_store.orig_sliver = new FImage( sliver_name, images_store.flipped );
 
-	if ( verbose ) {
+	if ( debug ) {
 		printf( "Images read succesfully!\n" );
 		printf( "Image Type : %d.\n", images_store.orig_base->metadata.type );
 		printf( "Image Format : %d.\n", images_store.orig_base->metadata.format );
@@ -296,6 +309,7 @@ void argo::readImages ( bool verbose ) {
 
 	images_store.orig_base->resample( images_store.resamp_base, precision );
 	images_store.orig_sliver ->resample( images_store.resamp_sliver, precision );
+	data_range = images_store.resamp_base->getRange();
 
 	// Set dimension parameters.
 	rbase_width = images_store.resamp_base->width;
@@ -528,8 +542,6 @@ void argo::initBetaGamma()	{
 	double partial_sum3;
 	double diff;
 
-	data_range = images_store.resamp_base->getRange();
-
 	// Hardcoded for stepping over image. For a byte scale image thus, we will have that z-step which is approximately 1.
 	double zstep = data_range / 256;	
 	double inv2zstep = 1 / ( 2 * zstep );
@@ -591,9 +603,9 @@ void argo::initBetaGamma()	{
  *	values using the pre-computed gammas. We then go through our combos range and perform
  *	a matrix multiply to generate C parameters and calculate the final difference.
  *
- *	@param	verbose	Boolean flag indicating whether to display debugging information.
+ *	@param	debug	Boolean flag indicating whether to display debugging information.
  */
-void argo::performGridSearch(bool verbose)	{
+void argo::performGridSearch(bool debug)	{
 
 	double * yb_arr = new double[numblocks];
 	double * yb2_arr = new double[numblocks];
@@ -810,7 +822,7 @@ void argo::performGridSearch(bool verbose)	{
 								results.bestC2 = C2;
 								results.bestC3 = C3;
 
-								if (verbose)	{
+								if (debug)	{
 									logCurrentBest();
 								}
 							}
@@ -833,11 +845,10 @@ void argo::performGridSearch(bool verbose)	{
 }
 
 /**
- *	Makes the call to simplex, taking in all values calculated by grid-search previously and passing them over along with
- *	corresponding precision values to help simplex function properly. Performs fast-z or slow-z correction depending
- *	upon user inputted value for simplex_mode. Defaults to slow-z correction.
+ *	Updates the currently best results for Grid-Search Slow-Z correction,
+ *	Grid-Search's best parameters, and Simplex's best Parameters.
  */
-void argo::performSimplexRoutine () {
+void argo::updateBestParameters() {
 	// Normalize z-correction parameters with the precision that was applied to the image.
 	results.bestC1 /= precision;
 	results.bestC2 /= precision * precision;
@@ -862,8 +873,37 @@ void argo::performSimplexRoutine () {
 	for ( int i = 0; i < 12; ++i ) {
 		simplex_best[ i ] = grid_best[ i ];
 	}
-	
+}
 
+void argo::readParameters() {
+	std::fstream file;
+	file.open( "parameters.data", std::ios::in );
+	for ( int i = 0; i < 12; ++i ) {
+		file >> grid_best[ i ];
+	}
+	file.close();
+	for ( int i = 0; i < 12; ++i ) {
+		simplex_best[ i ] = grid_best[ i ];
+	}
+}
+
+
+void argo::writeParameters() {
+	std::fstream file;
+	file.open( "parameters.data", std::ios::out );
+	for ( int i = 0; i < 12; ++i ) {
+		file << simplex_best[ i ] << "\n";
+	}
+	file.flush();
+	file.close();
+}
+
+/**
+ *	Makes the call to simplex, taking in all values calculated by grid-search previously and passing them over along with
+ *	corresponding precision values to help simplex function properly. Performs fast-z or slow-z correction depending
+ *	upon user inputted value for simplex_mode. Defaults to slow-z correction.
+ */
+void argo::performSimplexRoutine (bool debug) {
 	/*
 	*	Precision array determines by how much the Nelder-Mead simplex routine adjusts individual parameters.
 	*	These values are all based on the changes in the parameters that will cause at most a shift of 0.1 pixel.
@@ -882,7 +922,7 @@ void argo::performSimplexRoutine () {
 	precisionArr[ 11 ] = 0.1 * data_range / ( double ) ( images_store.orig_base->height * images_store.orig_base->height * images_store.orig_base->height );
 
 	simplex( images_store.orig_base, images_store.orig_sliver, grid_best, simplex_best, simplex_mode, precisionArr, simplex_reflect, simplex_contract, simplex_growth,
-			simplex_iterations );
+			simplex_iterations, debug );
 }
 
 /**
@@ -892,7 +932,7 @@ void argo::performSimplexRoutine () {
  *	Performs final warping and outputting of images as files. The operation of this method depends on the global array simplex_best
  *	being initialized and filled with the optimized parameters necessary for image correction.
  */
-void argo::performImageCorrection () {
+void argo::performImageCorrection( bool debug ) {
 	// Perform final warp, and write the output tiff
 	double aterms[ 4 ] = { simplex_best[ 0 ], simplex_best[ 2 ], simplex_best[ 4 ], simplex_best[ 6 ] };
 	double bterms[ 4 ] = { simplex_best[ 1 ], simplex_best[ 3 ], simplex_best[ 5 ], simplex_best[ 7 ] };
@@ -905,54 +945,38 @@ void argo::performImageCorrection () {
 	images_store.orig_sliver->warpSliver( warp_sliver, aterms, bterms, cterms, interp_type );
 
 	// Write corrected images.
-	warp_base->writeImage( "w_base.tif" );
-	warp_sliver->writeImage( "w_sliver.tif" );
+	warp_base->writeImage( "base.correctedslowZ.tiff" );
+	warp_sliver->writeImage( "sliver.correctedslowZ.tiff" );
 
-	double base_min = warp_base->getMin();
-	double base_max = warp_base->getMax();
-	double sliver_min = warp_sliver->getMin();
-	double sliver_max = warp_sliver->getMax();
-	double min_val = base_min < sliver_min ? base_min : sliver_min;
-	double max_val = base_max < sliver_max ? base_max : sliver_max;
-	double slope = 1.0 / ( max_val - min_val );
+	if ( debug ) {
+		double base_min = warp_base->getMin();
+		double base_max = warp_base->getMax();
+		double sliver_min = warp_sliver->getMin();
+		double sliver_max = warp_sliver->getMax();
+		double min_val = base_min < sliver_min ? base_min : sliver_min;
+		double max_val = base_max < sliver_max ? base_max : sliver_max;
+		double slope = 1.0 / ( max_val - min_val );
 
-	// Write viewable images.
-	warp_base->writeDisplayableImage( "dw_base.tif", slope, min_val );
-	warp_sliver->writeDisplayableImage( "dw_sliver.tif", slope, min_val );
+		// Write viewable images.
+		warp_base->writeDisplayableImage( "base_displayable.correctedslowZ.tiff", slope, min_val );
+		warp_sliver->writeDisplayableImage( "sliver_displayable.correctedslowZ.tiff", slope, min_val );
+		/*
+		// Write viewable original images.
+		base_min = images_store.orig_base->getMin();
+		base_max = images_store.orig_base->getMax();
+		sliver_min = images_store.orig_sliver->getMin();
+		sliver_max = images_store.orig_sliver->getMax();
+		min_val = base_min < sliver_min ? base_min : sliver_min;
+		max_val = base_max < sliver_max ? base_max : sliver_max;
+		slope = 1.0 / ( max_val - min_val );
 
-
-
-	// Write viewable original images.
-	base_min = images_store.orig_base->getMin();
-	base_max = images_store.orig_base->getMax();
-	sliver_min = images_store.orig_sliver->getMin();
-	sliver_max = images_store.orig_sliver->getMax();
-	min_val = base_min < sliver_min ? base_min : sliver_min;
-	max_val = base_max < sliver_max ? base_max : sliver_max;
-	slope = 1.0 / ( max_val - min_val );
-
-	images_store.orig_base->writeDisplayableImage( "orig_base.tif", slope, min_val );
-	images_store.orig_sliver->writeDisplayableImage( "orig_sliver.tif", slope, min_val );
+		images_store.orig_base->writeDisplayableImage( "base_displayable.tiff", slope, min_val );
+		images_store.orig_sliver->writeDisplayableImage( "sliver_displayable.tiff", slope, min_val );
+		*/
+	}
 
 	delete warp_base;
 	delete warp_sliver;
-}
-
-/**
- *	Non-debugging versions of argo execution.
- *
- *	@param	argc		The amount of command line arguments.
- *	@param	argv		The command line arguments.
- */
-void argo::correctImages ( int argc, char* argv[] ) {
-	readInputParams( argc, argv );
-	readImages( false );
-	initCalculatedParams();
-	initCombos();
-	initBetaGamma();
-	performGridSearch( false );
-	performSimplexRoutine();
-	performImageCorrection();
 }
 
 /**
@@ -960,65 +984,87 @@ void argo::correctImages ( int argc, char* argv[] ) {
  *
  *	@param	argc		The amount of command line arguments.
  *	@param	argv		The command line arguments.
- *	@param	verbose	Boolean flag indicating whether to display debugging information.
+ *	@param	debug	Boolean flag indicating whether to display debugging information.
  */
-void argo::correctImages ( int argc, char* argv[], bool verbose ) {
+void argo::correctImages( int argc, char* argv[], int _mode, bool debug ) {
+	mode = _mode;
 	clock_t begintime = clock();
 	clock_t time0, time1;
 	bool debugmode = false;
 
-	FreeImage_Initialise();
 	time0 = clock();
 	readInputParams( argc, argv );
 	if ( debugmode ) {
 		precision = 1;
 		blocksize = 8;
 	}
-	if ( verbose ) {
+	if ( debug ) {
 		logInputParams();
 	}
+	readImages( debug );
 
-	readImages( verbose );
-	initCalculatedParams();
-	time1 = clock();
-	times.image_read_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
+	// For Full mode and Grid-Search only mode
+	if ( mode == 0 || mode == 1 ) {
+		initCalculatedParams();
+		time1 = clock();
+		times.image_read_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 
-	time0 = clock();
-	initCombos();
-	time1 = clock();
-	times.combos_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
-
-	time0 = clock();
-	initBetaGamma();
-	time1 = clock();
-	times.diffs_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
-
-	if ( verbose ) {
-		logCalculatedParams();
-		logBetaGammaInfo();
-	}
-
-	time0 = clock();
-	performGridSearch( verbose );
-	time1 = clock();
-	times.grid_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
-
-	if ( verbose ) {
-		logGridSearchInfo();
-	}
-
-	time0 = clock();
-	performSimplexRoutine();
-	time1 = clock();
-	times.simplex_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
-
-	if ( verbose ) {
-		logSimplexRoutineInfo();
-	}
-
-	if ( !simplex_mode ) {
 		time0 = clock();
-		performImageCorrection();
+		initCombos();
+		time1 = clock();
+		times.combos_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
+
+		time0 = clock();
+		initBetaGamma();
+		time1 = clock();
+		times.diffs_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
+
+		if ( debug ) {
+			logCalculatedParams();
+			logBetaGammaInfo();
+		}
+
+		time0 = clock();
+		performGridSearch( debug );
+		time1 = clock();
+		times.grid_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
+
+		if ( debug ) {
+			logGridSearchInfo();
+		}
+		updateBestParameters();
+	}
+
+	// For Full Mode
+	if ( mode == 0 ) {
+		time0 = clock();
+		performSimplexRoutine( debug );
+		writeParameters();
+		time1 = clock();
+		times.simplex_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
+
+		if ( debug ) {
+			logSimplexRoutineInfo();
+		}
+	}
+	// For Simplex Only Mode
+	else if ( mode == 2 ) {
+		time0 = clock();
+		readParameters();
+		performSimplexRoutine( debug );
+		time1 = clock();
+		times.simplex_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
+
+		if ( debug ) {
+			logSimplexRoutineInfo();
+		}
+	}
+	
+	// For Grid-Search Only Mode and Slow-Z Correction Mode
+	if ( mode == 1 || !simplex_mode ) {
+		writeParameters();
+		time0 = clock();
+		performImageCorrection( debug );
 		time1 = clock();
 		times.image_write_time = ( ( double ) time1 - ( double ) time0 ) / CLOCKS_PER_SEC;
 	}
@@ -1026,8 +1072,7 @@ void argo::correctImages ( int argc, char* argv[], bool verbose ) {
 	clock_t endtime = clock();
 	times.total_time = ( ( double ) endtime - ( double ) begintime ) / CLOCKS_PER_SEC;
 
-	FreeImage_DeInitialise();
-	if ( verbose ) {
-		logProgramInformation();
+	if ( debug ) {
+		logProgramInformation( );
 	}
 }
