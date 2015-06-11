@@ -26,7 +26,6 @@
   </ItemGroup>
   <ItemGroup>
     <ClInclude Include="argo.h" />
-    <ClInclude Include="FreeImage.h" />
     <ClInclude Include="FImage.h" />
     <ClInclude Include="Kernels.h" />
     <ClInclude Include="precision.h" />
@@ -119,7 +118,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <EnablePREfast>true</EnablePREfast>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;$(AMDAPPSDKROOT)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\Eigen;$(SolutionDir)\..\tbb\include;$(AMDAPPSDKROOT)\include;$(SolutionDir)\..\FreeImage\Dist\x32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>
       </EnableEnhancedInstructionSet>
       <SuppressStartupBanner>false</SuppressStartupBanner>
@@ -128,30 +127,32 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <FloatingPointExceptions>true</FloatingPointExceptions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <PreprocessorDefinitions>_MBCS;FREEIMAGE_LIB ;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
       <FloatingPointModel>Precise</FloatingPointModel>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <Profile>true</Profile>
-      <AdditionalLibraryDirectories>$(AMDAPPSDKROOT)\lib\x86;$(SolutionDir)\..\tbb\lib\ia32\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(AMDAPPSDKROOT)\lib\x86;$(SolutionDir)\..\tbb\lib\ia32\vc12;$(SolutionDir)\..\FreeImage\Dist\x32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <Version>1.3</Version>
       <SuppressStartupBanner>false</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
       <LinkStatus>true</LinkStatus>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;OpenCL.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimaged.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;freeimage.lib;OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Inputs>$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.dll;$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.pdb</Inputs>
       <Outputs>Copying required Intel Thread Building Blocks DLL's.</Outputs>
-      <Command>xcopy /y "$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.*" "$(TargetDir)"</Command>
+      <Command>xcopy /y "$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb_debug.*" "$(TargetDir)"
+xcopy /y "$(SolutionDir)\..\FreeImage\Dist\x32\FreeImage.dll" "$(TargetDir)"</Command>
     </CustomBuildStep>
     <PreBuildEvent>
-      <Command>del /f "$(TargetDir)\tbb*"</Command>
+      <Command>del /f "$(TargetDir)\tbb*"
+del /f "$(TargetDir)\FreeImage*"</Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>Delete existing TBB files.</Message>
+      <Message>Delete existing DLL dependencies.</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Debug|x64'">
@@ -160,7 +161,7 @@
       <Optimization>Disabled</Optimization>
       <SDLCheck>true</SDLCheck>
       <EnablePREfast>true</EnablePREfast>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;$(AMDAPPSDKROOT)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\Eigen;$(SolutionDir)\..\tbb\include;$(AMDAPPSDKROOT)\include;$(SolutionDir)\..\FreeImage\Dist\x64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <EnableEnhancedInstructionSet>
       </EnableEnhancedInstructionSet>
       <SuppressStartupBanner>false</SuppressStartupBanner>
@@ -169,30 +170,32 @@
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <FloatingPointExceptions>true</FloatingPointExceptions>
       <RuntimeLibrary>MultiThreadedDebug</RuntimeLibrary>
-      <PreprocessorDefinitions>_MBCS;FREEIMAGE_LIB ;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <InlineFunctionExpansion>Disabled</InlineFunctionExpansion>
       <FloatingPointModel>Precise</FloatingPointModel>
     </ClCompile>
     <Link>
       <GenerateDebugInformation>true</GenerateDebugInformation>
       <Profile>true</Profile>
-      <AdditionalLibraryDirectories>$(AMDAPPSDKROOT)\lib\x86_64;$(SolutionDir)\..\tbb\lib\intel64\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(AMDAPPSDKROOT)\lib\x86_64;$(SolutionDir)\..\tbb\lib\intel64\vc12;$(SolutionDir)\..\FreeImage\Dist\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <Version>1.3</Version>
       <SuppressStartupBanner>false</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
       <LinkStatus>true</LinkStatus>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;OpenCL.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimaged.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;freeimage.lib;OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Inputs>$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.dll;$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.pdb</Inputs>
       <Outputs>Copying required Intel Thread Building Blocks DLL's.</Outputs>
-      <Command>xcopy /y "$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.*" "$(TargetDir)"</Command>
+      <Command>xcopy /y "$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb_debug.*" "$(TargetDir)"
+xcopy /y "$(SolutionDir)\..\FreeImage\Dist\x64\FreeImage.dll" "$(TargetDir)"</Command>
     </CustomBuildStep>
     <PreBuildEvent>
-      <Command>del /f "$(TargetDir)\tbb*"</Command>
+      <Command>del /f "$(TargetDir)\tbb*"
+del /f "$(TargetDir)\FreeImage*"</Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>Delete existing TBB files.</Message>
+      <Message>Delete existing DLL dependencies.</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|Win32'">
@@ -203,14 +206,14 @@
       </FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;$(AMDAPPSDKROOT)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\Eigen;$(SolutionDir)\..\tbb\include;$(AMDAPPSDKROOT)\include;$(SolutionDir)\..\FreeImage\Dist\x32;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SuppressStartupBanner>false</SuppressStartupBanner>
       <MultiProcessorCompilation>
       </MultiProcessorCompilation>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <FloatingPointExceptions>true</FloatingPointExceptions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <PreprocessorDefinitions>_MBCS;FREEIMAGE_LIB ;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <FloatingPointModel>Strict</FloatingPointModel>
     </ClCompile>
@@ -220,23 +223,25 @@
       <OptimizeReferences>true</OptimizeReferences>
       <Profile>
       </Profile>
-      <AdditionalLibraryDirectories>$(AMDAPPSDKROOT)\lib\x86;$(SolutionDir)\..\tbb\lib\ia32\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(AMDAPPSDKROOT)\lib\x86;$(SolutionDir)\..\tbb\lib\ia32\vc12;$(SolutionDir)\..\FreeImage\Dist\x32;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <Version>1.3</Version>
       <SuppressStartupBanner>false</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
       <LinkStatus>true</LinkStatus>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;OpenCL.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimage.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;freeimage.lib;OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
       <Outputs>Copying required Intel Thread Building Blocks DLL's.</Outputs>
-      <Command>xcopy /y "$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb.*" "$(TargetDir)"</Command>
+      <Command>xcopy /y "$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb.*" "$(TargetDir)"
+xcopy /y "$(SolutionDir)\..\FreeImage\Dist\x32\FreeImage.dll" "$(TargetDir)"</Command>
       <Inputs>$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb.dll;$(SolutionDir)\..\tbb\bin\ia32\vc12\tbb.pdb</Inputs>
     </CustomBuildStep>
     <PreBuildEvent>
-      <Command>del /f "$(TargetDir)\tbb*"</Command>
+      <Command>del /f "$(TargetDir)\tbb*"
+del /f "$(TargetDir)\FreeImage*"</Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>Delete existing TBB files.</Message>
+      <Message>Delete existing DLL dependencies.</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <ItemDefinitionGroup Condition="'$(Configuration)|$(Platform)'=='Release|x64'">
@@ -247,14 +252,14 @@
       </FunctionLevelLinking>
       <IntrinsicFunctions>true</IntrinsicFunctions>
       <SDLCheck>true</SDLCheck>
-      <AdditionalIncludeDirectories>$(SolutionDir)\..\eigen;$(SolutionDir)\..\tbb\include;$(AMDAPPSDKROOT)\include;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
+      <AdditionalIncludeDirectories>$(SolutionDir)\..\Eigen;$(SolutionDir)\..\tbb\include;$(AMDAPPSDKROOT)\include;$(SolutionDir)\..\FreeImage\Dist\x64;%(AdditionalIncludeDirectories)</AdditionalIncludeDirectories>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <MultiProcessorCompilation>
       </MultiProcessorCompilation>
       <FavorSizeOrSpeed>Speed</FavorSizeOrSpeed>
       <FloatingPointExceptions>true</FloatingPointExceptions>
       <RuntimeLibrary>MultiThreaded</RuntimeLibrary>
-      <PreprocessorDefinitions>_MBCS;FREEIMAGE_LIB ;%(PreprocessorDefinitions)</PreprocessorDefinitions>
+      <PreprocessorDefinitions>_MBCS;%(PreprocessorDefinitions)</PreprocessorDefinitions>
       <EnableEnhancedInstructionSet>StreamingSIMDExtensions2</EnableEnhancedInstructionSet>
       <FloatingPointModel>Strict</FloatingPointModel>
     </ClCompile>
@@ -264,15 +269,16 @@
       <OptimizeReferences>true</OptimizeReferences>
       <Profile>
       </Profile>
-      <AdditionalLibraryDirectories>$(AMDAPPSDKROOT)\lib\x86_64;$(SolutionDir)\..\tbb\lib\intel64\vc12;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
+      <AdditionalLibraryDirectories>$(AMDAPPSDKROOT)\lib\x86_64;$(SolutionDir)\..\tbb\lib\intel64\vc12;$(SolutionDir)\..\FreeImage\Dist\x64;%(AdditionalLibraryDirectories)</AdditionalLibraryDirectories>
       <Version>1.3</Version>
       <SuppressStartupBanner>true</SuppressStartupBanner>
       <LargeAddressAware>true</LargeAddressAware>
       <LinkStatus>false</LinkStatus>
-      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;OpenCL.lib;$(SolutionDir)\lib\freeimage\$(Configuration)\$(Platform)\freeimage.lib;%(AdditionalDependencies)</AdditionalDependencies>
+      <AdditionalDependencies>kernel32.lib;user32.lib;gdi32.lib;winspool.lib;comdlg32.lib;advapi32.lib;shell32.lib;ole32.lib;oleaut32.lib;uuid.lib;odbc32.lib;odbccp32.lib;freeimage.lib;OpenCL.lib;%(AdditionalDependencies)</AdditionalDependencies>
     </Link>
     <CustomBuildStep>
-      <Command>xcopy /y "$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb.*" "$(TargetDir)"</Command>
+      <Command>xcopy /y "$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb.*" "$(TargetDir)"
+xcopy /y "$(SolutionDir)\..\FreeImage\Dist\x64\FreeImage.dll" "$(TargetDir)"</Command>
     </CustomBuildStep>
     <CustomBuildStep>
       <Outputs>Copying required Intel Thread Building Blocks DLL's.</Outputs>
@@ -281,10 +287,11 @@
       <Inputs>$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb.dll;$(SolutionDir)\..\tbb\bin\intel64\vc12\tbb.pdb</Inputs>
     </CustomBuildStep>
     <PreBuildEvent>
-      <Command>del /f "$(TargetDir)\tbb*"</Command>
+      <Command>del /f "$(TargetDir)\tbb*"
+del /f "$(TargetDir)\FreeImage*"</Command>
     </PreBuildEvent>
     <PreBuildEvent>
-      <Message>Delete existing TBB files.</Message>
+      <Message>Delete existing DLL dependencies.</Message>
     </PreBuildEvent>
   </ItemDefinitionGroup>
   <Import Project="$(VCTargetsPath)\Microsoft.Cpp.targets" />
